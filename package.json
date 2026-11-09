@@ -15,7 +15,8 @@
     "start": "node build.mjs && node server-dist/server.mjs",
     "start:prod": "node server-dist/server.mjs",
     "check:setup": "node scripts/preflight.mjs",
-    "backup": "node scripts/backup.mjs"
+    "backup": "node scripts/backup.mjs",
+    "public": "node scripts/public.mjs"
   },
   "devDependencies": {
     "esbuild": "^0.28.2",

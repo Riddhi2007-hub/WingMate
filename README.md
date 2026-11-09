@@ -55,7 +55,15 @@ Everything (accounts, flights, connections, messages, reports) is in one SQLite 
 stored only as scrypt hashes. **A hosting plan with a persistent disk is required**, otherwise the file is erased on every restart.
 Make a safe copy any time with `npm run backup` (saved in `backups/`, works while the server runs); copy that folder somewhere off the server.
 
-## Put it online
+## Share it for free from your own computer (no hosting cost)
+
+For a demo or a call: double-click **`start-public.bat`** (or `npm run public`). It builds the site, opens a free Cloudflare quick tunnel,
+starts the server and prints a public `https://...trycloudflare.com/airasia/login.html` link to share.
+First time only: install the tunnel program with `winget install Cloudflare.cloudflared` and open a new window.
+The site is online only while that window is open and the computer is awake; the link changes every start; your data stays in `data/` on your computer.
+For real confirmation emails copy `.env.example` to `.env` and fill in the Gmail app password (see the file).
+
+## Put it online (always-on hosting)
 
 The repo includes a `Dockerfile`, `render.yaml` (Render) and `fly.toml` (Fly.io). Either way: connect the GitHub repo, attach a 1 GB disk at `/data`,
 set `WINGMATE_PUBLIC_URL` to the site address and the `SMTP_*` variables (otherwise confirmation and reset emails are never delivered),
