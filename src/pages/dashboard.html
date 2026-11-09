@@ -1,0 +1,293 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="{{themeColor}}">
+{{fonts}}
+<title>WingMate – Dashboard</title>
+<link rel="stylesheet" href="css/base.css">
+<link rel="stylesheet" href="css/dashboard.css">
+</head>
+<body>
+<div class="src-note" style="display:block;margin:0;padding:14px 18px;background:#ffe9a8;border-bottom:3px solid #c2262e;font:16px/1.4 Arial,sans-serif;color:#000">This is an unbuilt source file, so it has no design. Open the finished page from the <b>dist</b> folder instead (run <b>npm run build</b> first if dist is missing).</div>
+<header class="top">
+  <div class="top-in">
+    <a class="lockup" href="#home" aria-label="{{airline}} | WingMate home">
+      <img src="assets/logo.png" alt="{{airline}}">
+      <span class="divider" aria-hidden="true"></span>
+      <span class="app-name">WingMate</span>
+    </a>
+    <nav class="nav" aria-label="Main">
+      <a href="#home" data-nav="home"><svg class="i" viewBox="0 0 24 24"><path d="M3 11l9-8 9 8v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"></path></svg>Home</a>
+      <a href="#find" data-nav="find"><svg class="i" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-4-4"></path></svg>Find travel mates</a>
+      <a href="#messages" data-nav="messages"><svg class="i" viewBox="0 0 24 24"><path d="M4 5h16v11H9l-5 4z"></path></svg>Messages<span class="dot" id="navDot" hidden>0</span></a>
+      <a href="#games" data-nav="games"><svg class="i" viewBox="0 0 24 24"><rect x="3" y="8" width="18" height="10" rx="4"></rect><path d="M8 11v4M6 13h4"></path><circle cx="16" cy="12" r="1"></circle><circle cx="18" cy="14.5" r="1"></circle></svg>Games</a>
+      <a href="#prefs" data-nav="prefs"><svg class="i" viewBox="0 0 24 24"><path d="M4 7h10M18 7h2M4 17h2M10 17h10"></path><circle cx="16" cy="7" r="2"></circle><circle cx="8" cy="17" r="2"></circle></svg>My preferences</a>
+    </nav>
+    <div class="user">
+      <a class="user-link" href="#profile" id="userLink" title="Profile &amp; data" aria-label="Profile and data"><span class="av" id="whoAv">A</span></a>
+      <a class="out" href="login.html">Log out</a>
+    </div>
+  </div>
+</header>
+
+<main>
+
+<noscript><div class="nojs-note" role="note">WingMate needs JavaScript. Please turn it on in your browser and reload this page.</div></noscript>
+
+<!-- ============ HOME ============ -->
+<section id="home" data-view="home">
+  <div class="page-head">
+    <div>
+      <h1 id="hello">Welcome aboard</h1>
+      <p class="lead">Meet travellers on your flight and plan the journey together.</p>
+    </div>
+  </div>
+
+  <div class="flight" id="flightCard" style="margin-bottom:20px">
+    <div class="flight-info">
+      <div><span class="pill" id="stagePill"></span></div>
+      <div class="route">
+        <div><b id="routeFrom">---</b><span id="fromTime"></span></div>
+        <div class="line"><i></i><svg class="i" viewBox="0 0 24 24" style="transform:rotate(90deg)"><path d="M12 2l2 8 8 4v2l-8-2-1 6 3 2v2l-4-1-4 1v-2l3-2-1-6-8 2v-2l8-4z"></path></svg><i></i></div>
+        <div><b id="routeTo">---</b><span id="toTime"></span></div>
+      </div>
+      <div class="meta"><span id="flightMeta"></span> <button class="btn ghost sm" id="flightBtn" type="button">Add my flight</button></div>
+      <label class="switch"><input type="checkbox" id="visibleToggle"><span class="track"></span><span>Open to connect with fellow {{guests}}</span></label>
+    </div>
+    {{flight}}
+  </div>
+
+  <div class="stats" style="margin-bottom:20px">
+    <div class="stat"><span class="n" id="statMatches">0</span><span class="t">strong matches (70%+) on your flight</span></div>
+    <div class="stat"><span class="n" id="statConns">0</span><span class="t">travel mates connected</span></div>
+    <div class="stat"><span class="n" id="statPrefs">0/6</span><span class="t">preferences saved</span></div>
+  </div>
+
+  <div class="grid g-main">
+    <div class="stack">
+      <div class="card">
+        <div class="card-head"><h2>Top matches for you</h2><a class="small" href="#find">See all</a></div>
+        <div id="topMatches"></div>
+      </div>
+      <div class="card" id="suggestCard">
+        <div class="card-head"><h2 id="suggestTitle">Suggested for you</h2></div>
+        <div id="suggestBody" class="stack" style="gap:12px"></div>
+      </div>
+    </div>
+    <div class="card" style="align-self:start">
+      <div class="card-head"><h2>Your saved preferences</h2><a class="small" href="#prefs">Edit</a></div>
+      <div id="prefSummary"></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ FIND ============ -->
+<section id="find" data-view="find">
+  <div class="page-head">
+    <div>
+      <h1>Find travel mates</h1>
+      <p class="lead" id="findLead">{{Guests}} on your flight, ranked by how closely their preferences match yours.</p>
+    </div>
+    <div class="on-white"><label class="switch"><input type="checkbox" id="visibleToggle2"><span class="track"></span><span>Open to connect</span></label></div>
+  </div>
+
+  <div class="card toolbar" style="margin-bottom:20px">
+    <div class="tb-head">
+      <div><h2>Filter by preference</h2><p class="small muted">Choose any preferences to narrow the list. Leave a filter on “Any” to include everyone. People with no sleeping preference are shown whichever you pick.</p></div>
+      <div class="tb-actions"><button class="btn ghost sm" id="usePrefs" type="button">Use my preferences</button><button class="btn ghost sm" id="resetFilters" type="button">Clear filters</button></div>
+    </div>
+    <div class="filter-grid"><div class="fld"><label class="lbl" for="fType">Travel purpose</label><select id="fType" data-filter="type"><option value="">Any</option><option value="Business">Business</option><option value="Leisure">Leisure</option><option value="Family">Family</option><option value="Study">Study</option></select></div><div class="fld"><label class="lbl" for="fWhy">Connection goal</label><select id="fWhy" data-filter="why"><option value="">Any</option><option value="cab">Just sharing a cab</option><option value="travel">Travel &amp; sightsee together</option><option value="meet">Just meet new people</option></select></div><div class="fld"><label class="lbl" for="fPers">Personality type</label><select id="fPers" data-filter="pers"><option value="">Any</option><option value="Extrovert">Extrovert</option><option value="Introvert">Introvert</option><option value="Ambivert">Ambivert</option></select></div><div class="fld"><label class="lbl" for="fAwake">Sleeping preference</label><select id="fAwake" data-filter="awake"><option value="">Any</option><option value="Mostly awake">Mostly awake</option><option value="Mostly asleep">Mostly asleep</option><option value="No preference">No preference</option></select></div><div class="fld"><label class="lbl" for="fSeat">Seating preference</label><select id="fSeat" data-filter="seat"><option value="">Any</option><option value="Window">Window</option><option value="Middle">Middle</option><option value="Aisle">Aisle</option></select></div></div>
+    <div class="row"><span class="lab">Interests</span><span id="intChips" class="chips"></span></div>
+    <p class="small muted" style="margin-top:-4px">Shows people who share at least one selected interest.</p>
+    <div class="row">
+      <label class="lab" for="q">Search</label>
+      <input type="search" id="q" placeholder="Name or keyword" style="max-width:260px" aria-label="Search {{guests}}">
+      <label class="lab" for="sort" style="margin-left:10px;min-width:0">Sort</label>
+      <select id="sort" style="width:auto"><option value="match">Best match</option><option value="name">Name A–Z</option></select>
+    </div>
+    <div class="row rankrow"><span class="lab">Rank by</span><span id="critChips" class="chips"></span></div>
+    <p class="small muted" style="margin-top:-4px">The match percentage is worked out from the preferences ticked above. Untick one to leave it out.</p>
+  </div>
+
+  <p class="small muted" id="resultCount" style="margin-bottom:12px"></p>
+  <div id="results" class="results"></div>
+</section>
+
+<!-- ============ MESSAGES ============ -->
+<section id="messages" data-view="messages">
+  <div class="page-head">
+    <div>
+      <h1>Messages</h1>
+      <p class="lead">Chat before your flight and on board. Chats close 48 hours after you land.</p>
+    </div>
+  </div>
+  <div class="card msgs" id="msgBox">
+    <div class="convs" id="convs"></div>
+    <div class="thread" id="thread"></div>
+  </div>
+</section>
+
+<!-- ============ GAMES ============ -->
+<section id="games" data-view="games">
+  <div class="page-head">
+    <div>
+      <h1>Games</h1>
+      <p class="lead">Pass the time with your travel mates.</p>
+    </div>
+    <div style="min-width:240px"><label class="lbl" for="playWith">Playing with</label><select id="playWith"><option value="">Practice on my own</option></select></div>
+  </div>
+  <div class="tabs" role="tablist">
+    <button class="tabbtn" role="tab" id="tabHang" aria-selected="true" data-game="hang">Hangman</button>
+    <button class="tabbtn" role="tab" id="tabScribble" aria-selected="false" data-game="scribble">Scribble</button>
+  </div>
+
+  <div class="card" id="game-hang">
+    <div class="hang">
+      <svg viewBox="0 0 200 220" aria-label="Hangman drawing" id="hangSvg">
+        <g stroke="#1b2626" stroke-width="5" stroke-linecap="round" fill="none">
+          <path d="M30 205h120M60 205V25h85v28"></path><path d="M60 62l28-37" stroke-width="4"></path>
+        </g>
+        <g style="stroke:var(--brand)" stroke-width="5" stroke-linecap="round" fill="none" id="hangParts"></g>
+      </svg>
+      <div>
+        <h2 style="margin-bottom:6px">Guess the travel word</h2>
+        <p class="muted small" id="hangInfo"></p>
+        <div class="word" id="hangWord"></div>
+        <div class="result" id="hangResult" aria-live="polite"></div>
+        <div class="keys" id="hangKeys"></div>
+        <button class="btn ghost sm" id="hangNew" style="margin-top:18px">New word</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" id="game-scribble" hidden>
+    <div class="card-head"><div><h2>Scribble</h2><p class="muted small" id="scrWordLine"></p></div><button class="btn ghost sm" id="scrNew">New word</button></div>
+    <canvas id="pad" width="960" height="540" aria-label="Drawing pad"></canvas>
+    <div class="tools">
+      <span class="small" style="font-weight:500">Colour</span>
+      <span id="scrColors" style="display:flex;gap:8px"></span>
+      <span class="small" style="font-weight:500;margin-left:10px">Brush</span>
+      <input type="range" id="scrSize" min="2" max="24" value="6" aria-label="Brush size">
+      <button class="btn ghost sm" id="scrUndo">Undo</button>
+      <button class="btn ghost sm" id="scrClear">Clear</button>
+    </div>
+    <p class="muted small">Draw the word without writing it. Your travel mate guesses what it is.</p>
+  </div>
+</section>
+
+<!-- ============ PREFERENCES ============ -->
+<section id="prefs" data-view="prefs">
+  <div class="page-head">
+    <div>
+      <h1>My preferences</h1>
+      <p class="lead">Saved to your account and used to find travellers like you.</p>
+    </div>
+  </div>
+  <div class="card" style="padding-bottom:0">
+    <div class="step">
+      <div class="k"><span class="num">1</span><div><h3>Travel purpose</h3><p class="hint">Why are you flying?</p></div></div>
+      <div class="opts" data-pref="type" id="optType"></div>
+    </div>
+    <div class="step">
+      <div class="k"><span class="num">2</span><div><h3>Connection goal</h3><p class="hint">Why do you want to connect? Sightseeing together suggests a trip package</p></div></div>
+      <div class="opts" data-pref="why" id="optWhy"></div>
+    </div>
+    <div class="step">
+      <div class="k"><span class="num">3</span><div><h3>Personality type</h3><p class="hint">How would you describe yourself?</p></div></div>
+      <div class="opts" data-pref="pers" id="optPers"></div>
+    </div>
+    <div class="step">
+      <div class="k"><span class="num">4</span><div><h3>Interests</h3><p class="hint">Pick as many as you like</p></div></div>
+      <div class="opts" data-pref="interests" id="optInt"></div>
+    </div>
+    <div class="step">
+      <div class="k"><span class="num">5</span><div><h3>Sleeping preference</h3><p class="hint">Awake or asleep on the flight? So you meet people on the same schedule</p></div></div>
+      <div class="opts" data-pref="awake" id="optAwake"></div>
+    </div>
+    <div class="step">
+      <div class="k"><span class="num">6</span><div><h3>Seating preference</h3><p class="hint">Window, middle or aisle</p></div></div>
+      <div class="opts" data-pref="seat" id="optSeat"></div>
+    </div>
+    <div class="savebar">
+      <span class="savestate" id="saveState">All changes saved</span>
+      <span style="display:flex;gap:10px"><button class="btn ghost" id="prefReset" type="button" disabled>Undo changes</button><button class="btn" id="prefSave" type="button" disabled>Save preferences</button></span>
+    </div>
+  </div>
+</section>
+
+<!-- ============ PROFILE ============ -->
+<section id="profile" data-view="profile">
+  <div class="page-head">
+    <div>
+      <h1>Profile &amp; data</h1>
+      <p class="lead">Your details and frequent flyer information. You choose what we keep.</p>
+    </div>
+  </div>
+  <div class="grid g2" style="align-items:start">
+    <div class="card">
+      <h2 style="margin-bottom:14px">Your details</h2>
+      <div class="form-grid">
+        <div><label class="lbl" for="pfFirst">First name</label><input type="text" id="pfFirst"></div>
+        <div><label class="lbl" for="pfLast">Last name</label><input type="text" id="pfLast"></div>
+      </div>
+      <div style="margin-top:16px"><label class="lbl" for="pfEmail">Email</label><input type="email" id="pfEmail" readonly></div>
+      <div style="margin-top:16px"><label class="lbl" for="pfBio">About you (shown to other guests on your flight)</label><textarea id="pfBio" maxlength="280" rows="3" style="height:auto;padding:10px 13px"></textarea></div>
+      <p class="small muted" style="margin-top:14px">WingMate is for travellers aged 16 and over.</p>
+    </div>
+
+    <div class="card on-white">
+      <h2 style="margin-bottom:14px">Frequent flyer information</h2>
+      <label class="switch" style="margin-bottom:16px"><input type="checkbox" id="saveData"><span class="track"></span><span>Save my frequent flyer details</span></label>
+      <div class="form-grid" id="ffFields">
+        <div><label class="lbl" for="ffNum">Membership number</label><input type="text" id="ffNum" placeholder="e.g. 1234 5678 90" inputmode="numeric"></div>
+        <div><label class="lbl" for="ffTier">Tier</label>
+          <select id="ffTier"><option>Green</option><option>Silver</option><option>Gold</option><option>Diamond</option></select></div>
+      </div>
+      <div class="retention" id="retention" style="margin-top:18px"></div>
+      <div style="display:flex;gap:10px;margin-top:18px;flex-wrap:wrap">
+        <button class="btn" id="pfSave">Save changes</button>
+        <button class="btn danger" id="ffDelete">Delete my saved data</button>
+        <button class="btn ghost" id="logoutBtn">Log out</button>
+        <button class="btn danger" id="acctDelete">Delete my account</button>
+      </div>
+      <div id="acctBox" hidden style="margin-top:16px">
+        <label class="lbl" for="acctPw">Enter your password to delete your account and everything linked to it</label>
+        <div style="display:flex;gap:10px;flex-wrap:wrap"><input type="password" id="acctPw" autocomplete="current-password" style="max-width:260px"><button class="btn danger" id="acctConfirm" type="button">Delete forever</button></div>
+        <p class="small" id="acctErr" style="color:#b00020;margin-top:8px" role="alert"></p>
+      </div>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<div class="modal" id="modal" hidden>
+  <div class="modal-box" role="dialog" aria-modal="true" aria-labelledby="mTitle">
+    <h3 id="mTitle"></h3>
+    <p id="mText" class="muted"></p>
+    <div class="modal-actions"><button class="btn ghost" id="mCancel" type="button">Cancel</button><button class="btn" id="mOk" type="button">OK</button></div>
+  </div>
+</div>
+<div class="modal" id="flightModal" hidden>
+  <form class="modal-box" id="flightForm" role="dialog" aria-modal="true" aria-labelledby="fmTitle">
+    <h3 id="fmTitle">Your flight</h3>
+    <p class="muted small">Everyone who enters the same flight number and date appears on each other's list. Times are in your device's time zone.</p>
+    <div class="form-grid" style="margin-top:12px">
+      <div><label class="lbl" for="fNumber">Flight number</label><input type="text" id="fNumber" placeholder="e.g. AK123" maxlength="8" required></div>
+      <div><label class="lbl" for="fDate">Date</label><input type="date" id="fDate" required></div>
+      <div><label class="lbl" for="fFrom">From (airport code)</label><input type="text" id="fFrom" placeholder="KUL" maxlength="3" required></div>
+      <div><label class="lbl" for="fTo">To (airport code)</label><input type="text" id="fTo" placeholder="HKG" maxlength="3" required></div>
+      <div><label class="lbl" for="fDep">Departure</label><input type="datetime-local" id="fDep" required></div>
+      <div><label class="lbl" for="fArr">Arrival</label><input type="datetime-local" id="fArr" required></div>
+    </div>
+    <p class="small" id="fErr" style="color:#b00020;margin-top:10px" role="alert"></p>
+    <div class="modal-actions"><button class="btn ghost" id="fCancel" type="button">Cancel</button><button class="btn ghost" id="fRemove" type="button" hidden>Remove flight</button><button class="btn" type="submit">Save flight</button></div>
+  </form>
+</div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script src="js/dashboard.js"></script>
+</body>
+</html>

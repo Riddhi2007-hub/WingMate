@@ -1,0 +1,6 @@
+/* login.css: extras used only on the log in page */
+.label-row{display:flex;justify-content:space-between;align-items:baseline}
+.label-row a{font-size:13.5px;font-weight:500;color:var(--brand-text);text-decoration:none}
+.label-row a:hover{text-decoration:underline}
+.banner{display:none;padding:11px 14px;border-radius:var(--radius);background:#fbeaea;border:1px solid var(--saffron);color:#7d1118;font-size:14px;line-height:1.4}
+.banner.show{display:block}

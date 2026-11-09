@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="{{themeColor}}">
+{{fonts}}
+<title>WingMate – Forgot password</title>
+<link rel="stylesheet" href="css/base.css">
+<link rel="stylesheet" href="css/auth.css">
+<link rel="stylesheet" href="css/login.css">
+</head>
+<body>
+<div class="src-note" style="display:block;margin:0;padding:14px 18px;background:#ffe9a8;border-bottom:3px solid #c2262e;font:16px/1.4 Arial,sans-serif;color:#000">This is an unbuilt source file, so it has no design. Open the finished page from the <b>dist</b> folder instead (run <b>npm run build</b> first if dist is missing).</div>
+<div class="page">
+
+  <!-- ===== Hero (left) ===== -->
+  <aside class="hero">
+    <!-- airline logo | app name -->
+    <div class="lockup" role="img" aria-label="{{airline}} | WingMate">
+      <img class="cx-logo" src="assets/logo.png" alt="{{airline}}">
+      <span class="divider" aria-hidden="true"></span>
+      <span class="app-name">WingMate</span>
+    </div>
+
+    {{hero}}
+
+    <div class="hero-copy">
+      <h2>Welcome back aboard.</h2>
+      <p>Pick up your chats, see who is on your flight, and keep planning the trip together.</p>
+      <div class="chips"><span>Chat before &amp; during flight</span><span>Match by interests</span><span>Trip itineraries</span></div>
+    </div>
+  </aside>
+
+  <!-- ===== Form (right) ===== -->
+  <main class="panel">
+    <section class="card" id="card">
+      <div class="head">
+        <div class="eyebrow">Forgot password</div>
+        <h1>Reset your password</h1>
+        <p class="sub" id="sub">Enter your email address and we will send you a link to choose a new password.</p>
+      </div>
+      <form id="form" novalidate>
+        <div class="banner" id="banner" role="alert"></div>
+        <div class="field" data-f="email">
+          <label for="email">Email address</label>
+          <input id="email" type="email" autocomplete="email" placeholder="you@example.com">
+          <span class="msg">Enter a valid email address.</span>
+        </div>
+        <button class="btn" type="submit">Send reset link</button>
+        <p class="alt"><a href="login.html">Back to log in</a></p>
+      </form>
+      <div class="done" id="done" role="status">
+        <div class="tick"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></div>
+        <h1>Check your email</h1>
+        <p class="sub">If there is an account for that address, we have sent a link to reset the password. It works for one hour.</p>
+        <a class="btn" href="login.html">Back to log in</a>
+      </div>
+    </section>
+  </main>
+</div>
+
+<script src="js/forgot.js"></script>
+</body>
+</html>

@@ -1,0 +1,15 @@
+/* =========================================================================
+   base.css  (loaded by every page)
+   The basic reset. Brand colours and typeface are in brands/<brand>/brand.css.
+   ========================================================================= */
+
+/* Brand tokens (colours, typeface, logo treatment) come from brands/<brand>/brand.css, which the build
+   puts in front of this file. Everything below only uses those tokens. */
+
+*{box-sizing:border-box;margin:0}
+[hidden]{display:none!important}
+body{font-family:var(--font);font-weight:400;color:var(--ink);background:var(--light-slate);-webkit-font-smoothing:antialiased}
+::placeholder{color:var(--placeholder);opacity:1}
+
+/* Shown only in the raw src/pages files (no stylesheet there); hidden in every built page. */
+.src-note{display:none!important}

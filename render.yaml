@@ -1,0 +1,24 @@
+# Render blueprint: New > Blueprint > pick this repo. A persistent disk needs a paid instance type (the free one loses its data).
+services:
+  - type: web
+    name: wingmate
+    runtime: docker
+    plan: starter
+    healthCheckPath: /api/health
+    disk:
+      name: wingmate-data
+      mountPath: /data
+      sizeGB: 1
+    envVars:
+      - key: WINGMATE_PUBLIC_URL
+        sync: false   # set to your site address, e.g. https://wingmate.onrender.com
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_PORT
+        value: "587"
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASS
+        sync: false
+      - key: SMTP_FROM
+        sync: false

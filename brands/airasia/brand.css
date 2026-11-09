@@ -1,0 +1,36 @@
+/* AirAsia brand (from the AirAsia style guide)
+   Colours: AirAsia Red (logo red #EE2722), black, white; secondary plum (PANTONE 222C), coral (7416C), magenta (7635C).
+   Type: Gotham Rounded is proprietary, so the stack uses Nunito (rounded, loaded from Google Fonts) until the licensed files are added.
+   Logo: red circle; on a red background the guide uses the outlined version (assets/logo.png). Never recoloured or recreated.
+   Words: "AirAsia" is one word and people are "guests". */
+:root{
+  --brand:#EE2722;--brand-rgb:238,39,34;--brand-text:#C41E1A;--brand-2:#76174A;--brand-3:#F37160;--brand-3-ink:#1a0b0b;
+  --brand-magenta:#BF3173;
+  --hero-bg:#EE2722;
+  --flight-bg:linear-gradient(100deg,#76174A 0%,#EE2722 62%,#F37160 100%);
+  --sand:#F6C9C3;--light-sand:#FBE3E0;--slate:#D9D9D9;--light-slate:#F4F4F4;--saffron:#C41E1A;--white:#fff;
+  --ink:#111;--muted:#4f4f4f;--placeholder:#6c6c6c;--line:#e3e3e3;--tint:#FDECEB;--tint-ink:#7a1411;--radius:14px;
+  --font:"Gotham Rounded","Gotham","Nunito","Varela Round","SF Pro Rounded","Arial Rounded MT Bold",system-ui,"Noto Sans","Noto Sans JP","Noto Sans SC",sans-serif;
+}
+h1,h2,h3{font-weight:800!important}
+.eyebrow,.btn,.nav a,.chip.on,.pill{font-weight:700}
+.btn{border-radius:999px}
+.btn.ghost{border-radius:999px}
+.lockup{align-items:center!important}
+.lockup .app-name{top:0!important;font-weight:800}
+.lockup img,.lockup .cx-logo{border-radius:0}
+.dot{background:#111!important;color:#fff!important}
+.av.c0{background:#EE2722;color:#fff}.av.c1{background:#76174A;color:#fff}.av.c2{background:#F37160;color:#1a0b0b}
+.av.c3{background:#BF3173;color:#fff}.av.c4{background:#111;color:#fff}.av.c5{background:#EBEBEB;color:#111}
+/* Hero art: the AirAsia "arc" (taken from the logo, rounded ends, smile never frown), red/black/white only. */
+.photo{position:relative;z-index:1;margin:0 -48px;flex:1 1 auto;min-height:210px;display:flex;align-items:center}
+.photo svg{display:block;width:100%;height:100%;max-height:420px}
+.hero-copy h2{font-weight:800!important}
+.flight-art{position:absolute;right:0;top:0;height:100%;width:60%;pointer-events:none}
+@media(max-width:860px){.photo{margin:0 -24px;min-height:150px}.flight-art{width:100%;opacity:.45}}
+/* Circular logo: bigger than a wordmark so the ring and wordmark stay legible (guide minimum 20 mm on print). */
+.lockup img{height:46px!important}
+.lockup .cx-logo{height:64px!important}
+.lockup .divider{height:38px!important}
+.hero .lockup .divider{height:46px!important}
+@media(max-width:860px){.lockup img{height:36px!important}.lockup .cx-logo{height:48px!important}.lockup .divider{height:28px!important}.hero .lockup .divider{height:34px!important}}

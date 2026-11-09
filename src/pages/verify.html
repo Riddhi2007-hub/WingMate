@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="{{themeColor}}">
+{{fonts}}
+<title>WingMate – Confirm email</title>
+<link rel="stylesheet" href="css/base.css">
+<link rel="stylesheet" href="css/auth.css">
+<link rel="stylesheet" href="css/login.css">
+</head>
+<body>
+<div class="src-note" style="display:block;margin:0;padding:14px 18px;background:#ffe9a8;border-bottom:3px solid #c2262e;font:16px/1.4 Arial,sans-serif;color:#000">This is an unbuilt source file, so it has no design. Open the finished page from the <b>dist</b> folder instead (run <b>npm run build</b> first if dist is missing).</div>
+<div class="page">
+
+  <!-- ===== Hero (left) ===== -->
+  <aside class="hero">
+    <!-- airline logo | app name -->
+    <div class="lockup" role="img" aria-label="{{airline}} | WingMate">
+      <img class="cx-logo" src="assets/logo.png" alt="{{airline}}">
+      <span class="divider" aria-hidden="true"></span>
+      <span class="app-name">WingMate</span>
+    </div>
+
+    {{hero}}
+
+    <div class="hero-copy">
+      <h2>Welcome back aboard.</h2>
+      <p>Pick up your chats, see who is on your flight, and keep planning the trip together.</p>
+      <div class="chips"><span>Chat before &amp; during flight</span><span>Match by interests</span><span>Trip itineraries</span></div>
+    </div>
+  </aside>
+
+  <!-- ===== Form (right) ===== -->
+  <main class="panel">
+    <section class="card" id="card">
+      <div class="head">
+        <div class="eyebrow">Email confirmation</div>
+        <h1>Confirming your email…</h1>
+        <p class="sub" id="sub">One moment.</p>
+      </div>
+      <div class="banner" id="banner" role="alert"></div>
+      <a class="btn" id="go" href="login.html" hidden style="display:block;line-height:50px;text-align:center;text-decoration:none;margin-top:8px">Log in</a>
+      <p class="alt" id="again" hidden>Need a new link? <a href="login.html">Log in</a> and we will send another.</p>
+    </section>
+  </main>
+</div>
+
+<script src="js/verify.js"></script>
+</body>
+</html>

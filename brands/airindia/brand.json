@@ -1,0 +1,38 @@
+{
+  "id": "airindia",
+  "airline": "Air India",
+  "themeColor": "#C70D29",
+  "fontsHref": "https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700;800&display=swap",
+  "guests": "passengers",
+  "guest": "passenger",
+  "logoAlt": "Air India",
+  "flight": {
+    "number": "AI 543",
+    "fromCode": "DEL",
+    "fromCity": "Delhi",
+    "toCode": "HND",
+    "toCity": "Tokyo Haneda"
+  },
+  "palette": [
+    [
+      "#1E1620",
+      "Ink"
+    ],
+    [
+      "#C70D29",
+      "Air India Red"
+    ],
+    [
+      "#531251",
+      "Plum"
+    ],
+    [
+      "#C9A24E",
+      "Gold"
+    ],
+    [
+      "#D8CEC4",
+      "Stone"
+    ]
+  ]
+}

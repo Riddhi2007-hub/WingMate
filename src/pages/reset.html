@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="{{themeColor}}">
+{{fonts}}
+<title>WingMate – Choose a new password</title>
+<link rel="stylesheet" href="css/base.css">
+<link rel="stylesheet" href="css/auth.css">
+<link rel="stylesheet" href="css/login.css">
+</head>
+<body>
+<div class="src-note" style="display:block;margin:0;padding:14px 18px;background:#ffe9a8;border-bottom:3px solid #c2262e;font:16px/1.4 Arial,sans-serif;color:#000">This is an unbuilt source file, so it has no design. Open the finished page from the <b>dist</b> folder instead (run <b>npm run build</b> first if dist is missing).</div>
+<div class="page">
+
+  <!-- ===== Hero (left) ===== -->
+  <aside class="hero">
+    <!-- airline logo | app name -->
+    <div class="lockup" role="img" aria-label="{{airline}} | WingMate">
+      <img class="cx-logo" src="assets/logo.png" alt="{{airline}}">
+      <span class="divider" aria-hidden="true"></span>
+      <span class="app-name">WingMate</span>
+    </div>
+
+    {{hero}}
+
+    <div class="hero-copy">
+      <h2>Welcome back aboard.</h2>
+      <p>Pick up your chats, see who is on your flight, and keep planning the trip together.</p>
+      <div class="chips"><span>Chat before &amp; during flight</span><span>Match by interests</span><span>Trip itineraries</span></div>
+    </div>
+  </aside>
+
+  <!-- ===== Form (right) ===== -->
+  <main class="panel">
+    <section class="card" id="card">
+      <div class="head">
+        <div class="eyebrow">Reset password</div>
+        <h1>Choose a new password</h1>
+        <p class="sub" id="sub">Use at least 8 characters.</p>
+      </div>
+      <form id="form" novalidate>
+        <div class="banner" id="banner" role="alert"></div>
+        <div class="field" data-f="pw">
+          <label for="pw">New password</label>
+          <div class="control">
+            <input id="pw" class="pw" type="password" autocomplete="new-password" placeholder="At least 8 characters">
+            <button type="button" class="toggle" data-target="pw" aria-label="Show password">Show</button>
+          </div>
+          <span class="msg">Use at least 8 characters.</span>
+        </div>
+        <div class="field" data-f="pw2">
+          <label for="pw2">Confirm new password</label>
+          <input id="pw2" class="pw" type="password" autocomplete="new-password" placeholder="Type it again">
+          <span class="msg">The passwords do not match.</span>
+        </div>
+        <button class="btn" type="submit">Save new password</button>
+      </form>
+      <div class="done" id="done" role="status">
+        <div class="tick"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></div>
+        <h1>Password changed</h1>
+        <p class="sub">You can now log in with your new password. Any other devices have been logged out.</p>
+        <a class="btn" href="login.html">Log in</a>
+      </div>
+    </section>
+  </main>
+</div>
+
+<script src="js/reset.js"></script>
+</body>
+</html>

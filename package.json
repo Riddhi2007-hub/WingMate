@@ -1,0 +1,28 @@
+{
+  "name": "wingmate",
+  "version": "1.0.0",
+  "private": true,
+  "description": "WingMate: meet the guests on your flight. Front end in TypeScript, themed per airline (AirAsia, Air India).",
+  "type": "module",
+  "scripts": {
+    "dev": "node build.mjs --watch",
+    "build": "node build.mjs",
+    "build:min": "node build.mjs --minify",
+    "typecheck": "tsc --noEmit && tsc -p tsconfig.server.json --noEmit",
+    "check": "npm run typecheck && npm run build",
+    "build:airasia": "node build.mjs --brand=airasia",
+    "build:airindia": "node build.mjs --brand=airindia",
+    "start": "node build.mjs && node server-dist/server.mjs",
+    "start:prod": "node server-dist/server.mjs",
+    "check:setup": "node scripts/preflight.mjs",
+    "backup": "node scripts/backup.mjs"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.2",
+    "typescript": "^6.0.3",
+    "@types/node": "^22.10.0"
+  },
+  "engines": {
+    "node": ">=22.13"
+  }
+}

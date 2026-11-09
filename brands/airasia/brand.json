@@ -1,0 +1,38 @@
+{
+  "id": "airasia",
+  "airline": "AirAsia",
+  "themeColor": "#EE2722",
+  "fontsHref": "https://fonts.googleapis.com/css2?family=Nunito:wght@300;400;500;600;700;800&display=swap",
+  "guests": "guests",
+  "guest": "guest",
+  "logoAlt": "AirAsia",
+  "flight": {
+    "number": "D7 543",
+    "fromCode": "KUL",
+    "fromCity": "Kuala Lumpur",
+    "toCode": "HND",
+    "toCity": "Tokyo Haneda"
+  },
+  "palette": [
+    [
+      "#111111",
+      "Black"
+    ],
+    [
+      "#EE2722",
+      "AirAsia Red"
+    ],
+    [
+      "#76174A",
+      "Plum"
+    ],
+    [
+      "#F37160",
+      "Coral"
+    ],
+    [
+      "#BF3173",
+      "Magenta"
+    ]
+  ]
+}

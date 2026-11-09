@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="{{themeColor}}">
+{{fonts}}
+<title>WingMate – Sign up</title>
+<link rel="stylesheet" href="css/base.css">
+<link rel="stylesheet" href="css/auth.css">
+</head>
+<body>
+<div class="src-note" style="display:block;margin:0;padding:14px 18px;background:#ffe9a8;border-bottom:3px solid #c2262e;font:16px/1.4 Arial,sans-serif;color:#000">This is an unbuilt source file, so it has no design. Open the finished page from the <b>dist</b> folder instead (run <b>npm run build</b> first if dist is missing).</div>
+<div class="page">
+
+  <!-- ===== Hero (left) ===== -->
+  <aside class="hero">
+    <!-- airline logo | app name -->
+    <div class="lockup" role="img" aria-label="{{airline}} | WingMate">
+      <img class="cx-logo" src="assets/logo.png" alt="{{airline}}">
+      <span class="divider" aria-hidden="true"></span>
+      <span class="app-name">WingMate</span>
+    </div>
+
+    {{hero}}
+
+    <div class="hero-copy">
+      <h2>Your journey is better with company.</h2>
+      <p>Meet travellers heading your way — share a seat row, split a cab, or explore your destination together.</p>
+      <div class="chips"><span>Chat before &amp; during flight</span><span>Match by interests</span><span>Trip itineraries</span></div>
+    </div>
+  </aside>
+
+  <!-- ===== Form (right) ===== -->
+  <main class="panel">
+    <section class="card" id="card">
+      <div class="head">
+        <div class="eyebrow">Create your account</div>
+        <h1>Sign up to WingMate</h1>
+        <p class="sub">Join fellow {{guests}} on your route. You must be 16 or older to use WingMate.</p>
+      </div>
+
+      <form id="form" novalidate>
+        <div class="row">
+          <div class="field" data-f="first">
+            <label for="first">First name</label>
+            <input id="first" type="text" autocomplete="given-name" placeholder="Alex">
+            <span class="msg">Enter your first name.</span>
+          </div>
+          <div class="field" data-f="last">
+            <label for="last">Last name</label>
+            <input id="last" type="text" autocomplete="family-name" placeholder="Chan">
+            <span class="msg">Enter your last name.</span>
+          </div>
+        </div>
+
+        <div class="field" data-f="email">
+          <label for="email">Email</label>
+          <input id="email" type="email" autocomplete="email" placeholder="you@example.com">
+          <span class="msg">Enter a valid email address.</span>
+        </div>
+
+        <div class="field" data-f="phone">
+          <label for="phone">Phone number</label>
+          <div class="phone">
+            <select id="cc" aria-label="Country code">
+              <option value="+852">🇭🇰 +852</option>
+              <option value="+86">🇨🇳 +86</option>
+              <option value="+81">🇯🇵 +81</option>
+              <option value="+65">🇸🇬 +65</option>
+              <option value="+44">🇬🇧 +44</option>
+              <option value="+1">🇺🇸 +1</option>
+              <option value="+61">🇦🇺 +61</option>
+              <option value="+91">🇮🇳 +91</option>
+            </select>
+            <input id="phone" type="tel" inputmode="tel" autocomplete="tel-national" placeholder="9123 4567">
+          </div>
+          <span class="msg">Enter a valid phone number (7–12 digits).</span>
+        </div>
+
+        <div class="field" data-f="dob">
+          <label for="dob">Date of birth</label>
+          <input id="dob" type="date">
+          <span class="msg" id="dobMsg">Enter your date of birth.</span>
+        </div>
+
+        <div class="field" data-f="pw">
+          <label for="pw">Password</label>
+          <div class="control">
+            <input id="pw" class="pw" type="password" autocomplete="new-password" placeholder="At least 8 characters">
+            <button type="button" class="toggle" data-target="pw" aria-label="Show password">Show</button>
+          </div>
+          <div class="meter" id="meter" data-s="0"><i></i><i></i><i></i><i></i></div>
+          <span class="hint">Use 8+ characters with upper &amp; lower case, a number and a symbol.</span>
+          <span class="msg">Password must be at least 8 characters.</span>
+        </div>
+
+        <div class="field" data-f="pw2">
+          <label for="pw2">Confirm password</label>
+          <div class="control">
+            <input id="pw2" class="pw" type="password" autocomplete="new-password" placeholder="Re-enter password">
+            <button type="button" class="toggle" data-target="pw2" aria-label="Show password">Show</button>
+          </div>
+          <span class="msg">Passwords don’t match.</span>
+        </div>
+
+        <div class="field" data-f="terms">
+          <label class="check">
+            <input id="terms" type="checkbox">
+            <span>I agree to the <a href="#">Terms of Use</a> and <a href="#">Privacy Policy</a>, and understand my profile is only shared with travellers on my route if I opt in.</span>
+          </label>
+          <span class="msg">Please accept to continue.</span>
+        </div>
+
+        <button class="btn" type="submit">Create account</button>
+        <p class="alt">Already have an account? <a href="login.html">Log in</a></p>
+      </form>
+
+      <div class="done" id="done" role="status">
+        <div class="tick"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></div>
+        <h1>Check your email, <span id="name"></span></h1>
+        <p class="sub">We sent a confirmation link to <b id="sentTo"></b>. Click it to activate your account, then log in. The link works for 24 hours.</p>
+        <a class="btn" href="login.html">Go to log in</a>
+        <p class="alt" style="margin-top:14px">No email? Check spam, or <a href="#" id="resend">send it again</a>.</p>
+      </div>
+    </section>
+  </main>
+</div>
+
+<script src="js/signup.js"></script>
+</body>
+</html>

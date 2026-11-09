@@ -1,0 +1,5 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": { "lib": ["ES2022"], "types": ["node"], "target": "ES2022" },
+  "include": ["server", "src/ts/shared/stage.ts", "src/ts/dashboard/options.ts", "src/ts/dashboard/types.ts"]
+}
