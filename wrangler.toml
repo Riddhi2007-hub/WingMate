@@ -14,7 +14,7 @@ run_worker_first = ["/api/*"]
 [[d1_databases]]
 binding = "DB"
 database_name = "wingmate"
-database_id = "PASTE-YOUR-D1-DATABASE-ID-HERE"
+database_id = "1a145711-80da-4e21-8763-79c4137425e7"
 
 # Hourly housekeeping: expiring sessions, deleting old chats and saved flyer details.
 [triggers]
