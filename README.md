@@ -63,7 +63,29 @@ First time only: install the tunnel program with `winget install Cloudflare.clou
 The site is online only while that window is open and the computer is awake; the link changes every start; your data stays in `data/` on your computer.
 For real confirmation emails copy `.env.example` to `.env` and fill in the Gmail app password (see the file).
 
-## Put it online (always-on hosting)
+## Put it online for free with Cloudflare (always on, deploys from GitHub)
+
+The same API code also runs as a **Cloudflare Worker** with the data in a **D1** database, all on Cloudflare's free plan (no card).
+You get a permanent address like `https://wingmate.<your-name>.workers.dev`, and every push to GitHub redeploys it.
+
+1. Make a free account at https://dash.cloudflare.com.
+2. **Create the database:** *Storage & databases > D1 SQL database > Create database*, name it `wingmate`. Copy its **Database ID**.
+3. **Paste the ID:** on GitHub open `wrangler.toml`, replace `PASTE-YOUR-D1-DATABASE-ID-HERE` with that ID, and commit. (The tables are created automatically on the first request.)
+4. **Connect the repo:** *Workers & Pages > Create > Import a repository*, choose `WingMate`. Build command `npm run build`, deploy command `npx wrangler deploy` (the defaults it suggests). Deploy.
+5. **Email (needed, otherwise nobody can confirm their account):** in the Worker's *Settings > Variables and secrets* add `SMTP_HOST=smtp.gmail.com`, `SMTP_PORT=587`, `SMTP_USER=you@gmail.com`, `SMTP_FROM=WingMate <you@gmail.com>` as text, and `SMTP_PASS` (a Gmail **app password**) as a **Secret**.
+6. Open `https://<your-worker>.workers.dev/airasia/login.html`, sign up, and check your inbox.
+
+**Free plan limits to know about**
+- **Password hashing is lighter than the Node server's.** A free Worker gets about 10 ms of processor time per request, so passwords use PBKDF2 with **10,000 rounds** (`PBKDF2_ITERATIONS`). That is weaker than the 600,000 usually recommended; fine for a pilot, not for a public launch. On the **$5/month Workers Paid plan** set `PBKDF2_ITERATIONS=600000` (each hash stores its own cost, so existing passwords keep working). If sign-in ever fails with "Error 1102", lower it (try 5000).
+- **100,000 API requests a day.** The dashboard asks the server every 8 seconds (2.5 s while a chat is open), so a handful of people online all day is fine, hundreds is not.
+- D1 free tier: 5 GB, 100,000 row writes and 5 million row reads per day.
+- Cloudflare cannot send mail on port 25; Gmail on 587 (or 465) is fine.
+
+**Testing without Cloudflare:** `npm test` runs the whole API test suite twice, against the Node server and against the Worker code running in a local harness
+(`scripts/worker-harness/`: a fake D1, fake sockets and a fake mail server with STARTTLS). Run it locally with Cloudflare's own tooling using `npm run cf:dev`.
+What the harness cannot prove: that Cloudflare's real D1 and TCP sockets behave the same, and that your mail provider accepts the connection from Cloudflare.
+
+## Put it online on a server instead (Docker, Render, Fly.io)
 
 The repo includes a `Dockerfile`, `render.yaml` (Render) and `fly.toml` (Fly.io). Either way: connect the GitHub repo, attach a 1 GB disk at `/data`,
 set `WINGMATE_PUBLIC_URL` to the site address and the `SMTP_*` variables (otherwise confirmation and reset emails are never delivered),
@@ -90,7 +112,8 @@ two-browser test pass.
 ## Layout
 
 ```
-server/        Node server: api.ts (routes), db.ts (schema), auth.ts, validate.ts, jobs.ts (retention), seed.ts (sample guests)
+server/        the API (api.ts, auth.ts, validate.ts, jobs.ts, schema.ts, smtp.ts) shared by both backends, plus node/ (SQLite, scrypt, mail) and main.ts (Node server)
+worker/        Cloudflare Worker: index.ts, d1.ts, password.ts, socket.ts (wrangler.toml is in the project root)
 src/ts/        browser code (strict TypeScript)   src/pages/ HTML templates   src/styles/ CSS
 brands/        per-airline theme (colours, logo, artwork)
 build.mjs      builds dist/ (pages) and server-dist/ (server)

@@ -1,7 +1,8 @@
 import { GOALS, INTERESTS, PERSONALITIES, PREF_KEYS, PURPOSES, SEATING, SLEEPING, TIERS, isOneOf, type Interest, type PrefKey } from '../src/ts/dashboard/options';
 import type { Prefs } from '../src/ts/dashboard/types';
-import { config } from './config';
 import { bad } from './http';
+
+const MIN_AGE = 16;
 
 export const str = (value: unknown, field: string, min: number, max: number): string => {
   if (typeof value !== 'string') throw bad('Please fill this in.', field);
@@ -42,7 +43,7 @@ export function dateOfBirth(value: unknown): string {
   const monthGap = now.getUTCMonth() - born.getUTCMonth();
   if (monthGap < 0 || (monthGap === 0 && now.getUTCDate() < born.getUTCDate())) age--;
   if (born > now || age > 120) throw bad('Enter a valid date of birth.', 'dob');
-  if (age < config.minAge) throw bad(`You must be ${config.minAge} or older to use WingMate.`, 'dob');
+  if (age < MIN_AGE) throw bad(`You must be ${MIN_AGE} or older to use WingMate.`, 'dob');
   return text;
 }
 

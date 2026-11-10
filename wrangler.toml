@@ -1,0 +1,30 @@
+# Cloudflare Workers deployment for WingMate (website + API + database, all on Cloudflare's free plan).
+# Steps are in README.md ("Put it online for free with Cloudflare").
+name = "wingmate"
+main = "worker/index.ts"
+compatibility_date = "2025-09-01"
+
+# The built pages (npm run build creates the dist folder). Only /api/* runs our code; everything else is served as files.
+[assets]
+directory = "./dist"
+binding = "ASSETS"
+run_worker_first = ["/api/*"]
+
+# The database. Create it once (Cloudflare dashboard > Storage & databases > D1 > Create) and paste its ID below.
+[[d1_databases]]
+binding = "DB"
+database_name = "wingmate"
+database_id = "PASTE-YOUR-D1-DATABASE-ID-HERE"
+
+# Hourly housekeeping: expiring sessions, deleting old chats and saved flyer details.
+[triggers]
+crons = ["0 * * * *"]
+
+# Optional settings (or set them in the dashboard under Settings > Variables and secrets):
+# [vars]
+# SMTP_HOST = "smtp.gmail.com"
+# SMTP_PORT = "587"
+# SMTP_USER = "you@gmail.com"
+# SMTP_FROM = "WingMate <you@gmail.com>"
+# PBKDF2_ITERATIONS = "10000"
+# Keep SMTP_PASS as a *secret* (dashboard, or: npx wrangler secret put SMTP_PASS), never in this file.

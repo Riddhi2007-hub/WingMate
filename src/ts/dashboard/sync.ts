@@ -1,7 +1,7 @@
 /**
  * Talks to the server. `sync()` fetches everything the screen needs (your profile, your flight, the
  * guests on it, your connections and new messages) and copies it into `state`; the screen then
- * re-renders if something changed. The page asks again every couple of seconds, so new messages and
+ * re-renders if something changed. The page asks again every few seconds, so new messages and
  * connection requests from other people show up without reloading.
  */
 import { ApiError, api } from '../shared/api';
@@ -141,12 +141,15 @@ export function sync(): Promise<boolean> {
 
 let timer: number | undefined;
 
+/** How often to ask the server: quickly while a chat is open, slowly otherwise (the free hosting plan counts every request). */
+const pollDelay = (): number => (state.currentView === 'messages' ? 2500 : 8000);
+
 export function startPolling(): void {
   const tick = (): void => {
     if (!document.hidden) void sync();
-    timer = window.setTimeout(tick, 2500);
+    timer = window.setTimeout(tick, pollDelay());
   };
-  timer = window.setTimeout(tick, 2500);
+  timer = window.setTimeout(tick, pollDelay());
   document.addEventListener('visibilitychange', () => {
     if (!document.hidden) void sync();
   });

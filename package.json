@@ -8,7 +8,7 @@
     "dev": "node build.mjs --watch",
     "build": "node build.mjs",
     "build:min": "node build.mjs --minify",
-    "typecheck": "tsc --noEmit && tsc -p tsconfig.server.json --noEmit",
+    "typecheck": "tsc --noEmit && tsc -p tsconfig.server.json --noEmit && tsc -p tsconfig.worker.json --noEmit",
     "check": "npm run typecheck && npm run build",
     "build:airasia": "node build.mjs --brand=airasia",
     "build:airindia": "node build.mjs --brand=airindia",
@@ -16,7 +16,10 @@
     "start:prod": "node server-dist/server.mjs",
     "check:setup": "node scripts/preflight.mjs",
     "backup": "node scripts/backup.mjs",
-    "public": "node scripts/public.mjs"
+    "public": "node scripts/public.mjs",
+    "cf:dev": "npm run build && npx wrangler dev",
+    "cf:deploy": "npm run build && npx wrangler deploy",
+    "test": "node build.mjs && node tests/api.test.mjs && TARGET=worker node tests/api.test.mjs"
   },
   "devDependencies": {
     "esbuild": "^0.28.2",

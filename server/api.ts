@@ -1,57 +1,16 @@
-import type { IncomingMessage, ServerResponse } from 'node:http';
+/**
+ * The WingMate API. It runs unchanged on the Node server and on Cloudflare Workers: it takes a standard Request and a
+ * Runtime (database, settings, password hashing, email) and returns a standard Response.
+ */
 import { PREF_KEYS, type PrefKey } from '../src/ts/dashboard/options';
 import type { Prefs } from '../src/ts/dashboard/types';
 import { chatWindow, type ChatWindow } from '../src/ts/shared/stage';
-import { consumeToken, createSession, createToken, destroyAllSessions, destroySession, hashPassword, userIdForToken, verifyPassword } from './auth';
-import { sendMail } from './mailer';
-import { existsSync, readFileSync } from 'node:fs';
-import path from 'node:path';
-import { config } from './config';
-import { all, get, run, tx } from './db';
-import { HttpError, bad, clearCookie, clientIp, parseCookies, rateLimit, readJson, send, sessionCookie } from './http';
+import { consumeToken, createSession, createToken, destroyAllSessions, destroySession, userForToken } from './auth';
+import { HttpError, bad, errorResponse, json, parseCookies, rateLimit, rateLimitMemory, readJson, sessionCookie } from './http';
+import type { ConnRow, FlightRow, UserRow } from './rows';
+import type { Db, Runtime } from './runtime';
+import { stmt } from './runtime';
 import * as v from './validate';
-
-interface UserRow {
-  id: number;
-  email: string;
-  email_verified: number;
-  pw_hash: string;
-  first: string;
-  last: string;
-  phone: string;
-  dob: string;
-  bio: string;
-  visible: number;
-  p_type: string;
-  p_why: string;
-  p_pers: string;
-  p_interests: string;
-  p_awake: string;
-  p_seat: string;
-  criteria: string;
-  save_data: number;
-  flyer_num: string | null;
-  flyer_tier: string | null;
-  last_flight_at: number;
-  flight_key: string | null;
-}
-
-interface FlightRow {
-  key: string;
-  number: string;
-  from_code: string;
-  to_code: string;
-  departs_at: number;
-  lands_at: number;
-}
-
-interface ConnRow {
-  id: number;
-  from_id: number;
-  to_id: number;
-  status: 'requested' | 'connected' | 'declined';
-  flight_key: string;
-}
 
 type Conn = 'requested' | 'incoming' | 'connected';
 
@@ -69,14 +28,14 @@ const displayName = (u: UserRow): string => (u.last ? `${u.first} ${u.last.charA
 const flightDto = (f: FlightRow | undefined) =>
   f ? { key: f.key, number: f.number, from: f.from_code, to: f.to_code, departsAt: f.departs_at, landsAt: f.lands_at } : null;
 
-const getUser = (id: number): UserRow | undefined => get<UserRow>('SELECT * FROM users WHERE id = ?', id);
-const getFlight = (key: string | null): FlightRow | undefined => (key ? get<FlightRow>('SELECT * FROM flights WHERE key = ?', key) : undefined);
+const getUser = (db: Db, id: number): Promise<UserRow | undefined> => db.get<UserRow>('SELECT * FROM users WHERE id = ?', id);
+const getFlight = async (db: Db, key: string | null): Promise<FlightRow | undefined> => (key ? db.get<FlightRow>('SELECT * FROM flights WHERE key = ?', key) : undefined);
 
-const isBlocked = (a: number, b: number): boolean =>
-  !!get('SELECT 1 AS x FROM blocks WHERE (blocker_id = ? AND blocked_id = ?) OR (blocker_id = ? AND blocked_id = ?)', a, b, b, a);
+const isBlocked = async (db: Db, a: number, b: number): Promise<boolean> =>
+  !!(await db.get('SELECT 1 AS x FROM blocks WHERE (blocker_id = ? AND blocked_id = ?) OR (blocker_id = ? AND blocked_id = ?)', a, b, b, a));
 
-const pairConnection = (a: number, b: number): ConnRow | undefined =>
-  get<ConnRow>('SELECT * FROM connections WHERE (from_id = ? AND to_id = ?) OR (from_id = ? AND to_id = ?)', a, b, b, a);
+const pairConnection = (db: Db, a: number, b: number): Promise<ConnRow | undefined> =>
+  db.get<ConnRow>('SELECT * FROM connections WHERE (from_id = ? AND to_id = ?) OR (from_id = ? AND to_id = ?)', a, b, b, a);
 
 function connState(me: number, row: ConnRow | undefined): Conn | undefined {
   if (!row) return undefined;
@@ -84,6 +43,8 @@ function connState(me: number, row: ConnRow | undefined): Conn | undefined {
   if (row.from_id === me) return 'requested';
   return row.status === 'requested' ? 'incoming' : undefined;
 }
+
+const placeholders = (n: number): string => Array.from({ length: n }, () => '?').join(',');
 
 // ---------------------------------------------------------------- what the browser gets
 
@@ -102,53 +63,60 @@ function meDto(u: UserRow) {
   };
 }
 
-function peopleFor(me: UserRow, now: number) {
-  const myFlight = getFlight(me.flight_key);
-  const ids = new Map<number, UserRow>();
-  const notBlocked = (u: UserRow): boolean => !isBlocked(me.id, u.id);
+/** A fixed handful of queries however many people are on the flight (Cloudflare's free plan caps queries per request). */
+async function peopleFor(db: Db, me: UserRow, now: number) {
+  const blockRows = await db.all<{ blocker_id: number; blocked_id: number }>('SELECT blocker_id, blocked_id FROM blocks WHERE blocker_id = ? OR blocked_id = ?', me.id, me.id);
+  const blocked = new Set(blockRows.map((b) => (b.blocker_id === me.id ? b.blocked_id : b.blocker_id)));
 
-  // people on the same flight (only while I am open to connect myself)
+  const conns = await db.all<ConnRow>('SELECT * FROM connections WHERE from_id = ? OR to_id = ?', me.id, me.id);
+  const connWith = new Map<number, ConnRow>();
+  for (const c of conns) connWith.set(c.from_id === me.id ? c.to_id : c.from_id, c);
+
+  const users = new Map<number, UserRow>();
+  // people on the same flight (only while I am open to connect myself, and only people who confirmed their email)
   if (me.visible && me.flight_key) {
-    const sameFlight = all<UserRow>(
-      `SELECT * FROM users WHERE id != ? AND visible = 1 AND flight_key = ?`,
-      me.id, me.flight_key,
-    );
-    for (const u of sameFlight) if (notBlocked(u)) ids.set(u.id, u);
+    const same = await db.all<UserRow>('SELECT * FROM users WHERE id != ? AND visible = 1 AND email_verified = 1 AND flight_key = ?', me.id, me.flight_key);
+    for (const u of same) users.set(u.id, u);
   }
   // anyone I have a connection or an open request with, even from an earlier flight
-  const related = all<UserRow>(
-    `SELECT u.* FROM users u JOIN connections c ON (c.from_id = u.id AND c.to_id = ?) OR (c.to_id = u.id AND c.from_id = ?)
-     WHERE u.id != ? AND (c.status = 'connected' OR c.from_id = ? OR (c.to_id = ? AND c.status = 'requested'))`,
-    me.id, me.id, me.id, me.id, me.id,
-  );
-  for (const u of related) if (notBlocked(u)) ids.set(u.id, u);
+  const relatedIds = [...connWith.entries()]
+    .filter(([, c]) => c.status === 'connected' || c.from_id === me.id || (c.to_id === me.id && c.status === 'requested'))
+    .map(([id]) => id)
+    .filter((id) => !users.has(id));
+  if (relatedIds.length) {
+    for (const u of await db.all<UserRow>(`SELECT * FROM users WHERE id IN (${placeholders(relatedIds.length)})`, ...relatedIds)) users.set(u.id, u);
+  }
 
-  void myFlight;
-  return [...ids.values()].map((u) => {
-    const row = pairConnection(me.id, u.id);
-    const conn = connState(me.id, row);
-    const window: ChatWindow | undefined = conn === 'connected' && row ? windowFor(row, now) : undefined;
-    return {
-      id: String(u.id),
-      name: displayName(u),
-      bio: u.bio,
-      av: u.id % 6,
-      ...userPrefs(u),
-      ...(conn ? { conn } : {}),
-      ...(window ? { window } : {}),
-    };
-  });
+  const flightKeys = [...new Set([...connWith.values()].filter((c) => c.status === 'connected').map((c) => c.flight_key))];
+  const flights = new Map<string, FlightRow>();
+  if (flightKeys.length) for (const f of await db.all<FlightRow>(`SELECT * FROM flights WHERE key IN (${placeholders(flightKeys.length)})`, ...flightKeys)) flights.set(f.key, f);
+
+  return [...users.values()]
+    .filter((u) => !blocked.has(u.id))
+    .map((u) => {
+      const row = connWith.get(u.id);
+      const conn = connState(me.id, row);
+      const window: ChatWindow | undefined = conn === 'connected' && row ? windowFor(flights.get(row.flight_key), now) : undefined;
+      return {
+        id: String(u.id),
+        name: displayName(u),
+        bio: u.bio,
+        av: u.id % 6,
+        ...userPrefs(u),
+        ...(conn ? { conn } : {}),
+        ...(window ? { window } : {}),
+      };
+    });
 }
 
-function windowFor(row: ConnRow, now: number): ChatWindow {
-  const f = getFlight(row.flight_key);
+function windowFor(f: FlightRow | undefined, now: number): ChatWindow {
   // a connection always has a flight; if it was somehow removed, treat the chat as closed
   if (!f) return { stage: 'closed', closed: true, closesAt: null };
   return chatWindow({ departsAt: f.departs_at, landsAt: f.lands_at }, now);
 }
 
-function messagesFor(me: number, after: number) {
-  const rows = all<{ id: number; from_id: number; to_id: number; text: string; created_at: number; read_at: number | null }>(
+async function messagesFor(db: Db, me: number, after: number) {
+  const rows = await db.all<{ id: number; from_id: number; to_id: number; text: string; created_at: number; read_at: number | null }>(
     `SELECT * FROM (SELECT * FROM messages WHERE (from_id = ? OR to_id = ?) AND id > ? ORDER BY id DESC LIMIT 500) ORDER BY id ASC`,
     me, me, after,
   );
@@ -162,14 +130,14 @@ function messagesFor(me: number, after: number) {
   }));
 }
 
-function syncPayload(me: UserRow, after: number) {
+async function syncPayload(db: Db, me: UserRow, after: number) {
   const now = Date.now();
-  const messages = messagesFor(me.id, after);
+  const [messages, flight, people] = [await messagesFor(db, me.id, after), await getFlight(db, me.flight_key), await peopleFor(db, me, now)];
   return {
     now,
     me: meDto(me),
-    flight: flightDto(getFlight(me.flight_key)),
-    people: peopleFor(me, now),
+    flight: flightDto(flight),
+    people,
     messages,
     cursor: messages.length ? Math.max(...messages.map((m) => m.id)) : after,
   };
@@ -178,69 +146,66 @@ function syncPayload(me: UserRow, after: number) {
 // ---------------------------------------------------------------- handlers
 
 interface Ctx {
-  req: IncomingMessage;
-  res: ServerResponse;
+  request: Request;
+  rt: Runtime;
+  db: Db;
   user: UserRow | null;
   token: string | undefined;
   query: URLSearchParams;
   ip: string;
 }
 
-type Handler = (ctx: Ctx) => Promise<void> | void;
+type Handler = (ctx: Ctx) => Promise<Response> | Response;
 
 const requireUser = (ctx: Ctx): UserRow => {
   if (!ctx.user) throw new HttpError(401, 'unauthenticated', 'Please log in.');
   return ctx.user;
 };
 
+const ok = (extra: Record<string, unknown> = {}, headers: Record<string, string | string[]> = {}): Response => json(200, { ok: true, ...extra }, headers);
+
 const newUserPrefs: Prefs = { type: 'Leisure', why: 'travel', pers: 'Ambivert', interests: ['Food & dining', 'Photography', 'Culture & museums'], awake: 'No preference', seat: 'Window' };
 const defaultCriteria = (): Record<PrefKey, boolean> => Object.fromEntries(PREF_KEYS.map((k) => [k, true])) as Record<PrefKey, boolean>;
 
+const emailOf = (value: unknown): string => (typeof value === 'string' ? value.trim().toLowerCase() : '');
 
 // ---------------------------------------------------------------- email links
 
 /** Which airline theme the person is on (the folder name in the page address), so the link in the email comes back to the same pages. */
-function brandFolder(value: unknown): string {
-  const name = typeof value === 'string' ? value : '';
-  return /^[a-z0-9-]{1,30}$/.test(name) && existsSync(path.join(config.publicDir, name)) ? name : '';
+async function brandFolder(rt: Runtime, value: unknown): Promise<string> {
+  const name = typeof value === 'string' && /^[a-z0-9-]{1,30}$/.test(value) ? value : '';
+  return name && (await rt.brand(name)) !== null ? name : '';
 }
 
-function airlineName(folder: string): string {
-  try {
-    const raw = JSON.parse(readFileSync(path.join(config.publicDir, '..', 'brands', folder, 'brand.json'), 'utf8')) as { airline?: unknown };
-    if (typeof raw.airline === 'string') return raw.airline;
-  } catch {
-    /* fall through */
-  }
-  return 'WingMate';
-}
+const pageUrl = (rt: Runtime, folder: string, page: string, token: string): string => `${rt.settings.publicUrl}/${folder ? `${folder}/` : ''}${page}.html#token=${token}`;
 
-const pageUrl = (folder: string, page: string, token: string): string => `${config.publicUrl}/${folder ? `${folder}/` : ''}${page}.html#token=${token}`;
-
-function sendVerification(user: UserRow, folder: string): void {
-  const token = createToken(user.id, 'verify', config.verifyHours * 3_600_000);
-  sendMail({
+async function sendVerification(rt: Runtime, user: UserRow, folder: string): Promise<void> {
+  const token = await createToken(rt.db, user.id, 'verify', rt.settings.verifyHours * 3_600_000);
+  const airline = folder ? await rt.brand(folder) : null;
+  rt.sendMail({
     to: user.email,
     subject: 'Confirm your email for WingMate',
-    text: `Hi ${user.first},\n\nThanks for signing up to WingMate${folder ? ` with ${airlineName(folder)}` : ''}. Please confirm your email address:\n\n${pageUrl(folder, 'verify', token)}\n\nThis link works for ${config.verifyHours} hours. If you did not sign up, you can ignore this email and nothing will happen.\n\nWingMate`,
+    text: `Hi ${user.first},\n\nThanks for signing up to WingMate${airline ? ` with ${airline}` : ''}. Please confirm your email address:\n\n${pageUrl(rt, folder, 'verify', token)}\n\nThis link works for ${rt.settings.verifyHours} hours. If you did not sign up, you can ignore this email and nothing will happen.\n\nWingMate`,
   });
 }
 
-function sendReset(user: UserRow, folder: string): void {
-  const token = createToken(user.id, 'reset', config.resetMinutes * 60_000);
-  sendMail({
+async function sendReset(rt: Runtime, user: UserRow, folder: string): Promise<void> {
+  const token = await createToken(rt.db, user.id, 'reset', rt.settings.resetMinutes * 60_000);
+  rt.sendMail({
     to: user.email,
     subject: 'Reset your WingMate password',
-    text: `Hi ${user.first},\n\nWe received a request to reset your WingMate password. Choose a new one here:\n\n${pageUrl(folder, 'reset', token)}\n\nThis link works for ${config.resetMinutes} minutes and can be used once. If you did not ask for this, ignore this email; your password has not changed.\n\nWingMate`,
+    text: `Hi ${user.first},\n\nWe received a request to reset your WingMate password. Choose a new one here:\n\n${pageUrl(rt, folder, 'reset', token)}\n\nThis link works for ${rt.settings.resetMinutes} minutes and can be used once. If you did not ask for this, ignore this email; your password has not changed.\n\nWingMate`,
   });
 }
 
-const routes: Record<string, Handler> = {
-  'GET /api/health': ({ res }) => send(res, 200, { ok: true }),
+const HOUR = 3_600_000;
 
-  async 'POST /api/signup'({ req, res, ip }) {
-    rateLimit(`signup:${ip}`, 10, 3_600_000);
-    const b = await readJson(req);
+const routes: Record<string, Handler> = {
+  'GET /api/health': () => ok(),
+
+  async 'POST /api/signup'({ request, rt, db, ip }) {
+    await rateLimit(db, `signup:${ip}`, 10, HOUR);
+    const b = await readJson(request);
     const first = v.str(b.first, 'first', 1, 60);
     const last = v.str(b.last, 'last', 1, 60);
     const mail = v.email(b.email);
@@ -248,112 +213,120 @@ const routes: Record<string, Handler> = {
     const dob = v.dateOfBirth(b.dob);
     const pw = v.password(b.password);
     if (b.terms !== true) throw bad('Please accept the Terms of Use and Privacy Policy.', 'terms');
-    if (get('SELECT 1 AS x FROM users WHERE email = ?', mail)) throw new HttpError(409, 'email_taken', 'An account with this email already exists. Try logging in.', 'email');
-    const hash = await hashPassword(pw);
+    const taken = new HttpError(409, 'email_taken', 'An account with this email already exists. Try logging in.', 'email');
+    if (await db.get('SELECT 1 AS x FROM users WHERE email = ?', mail)) throw taken;
+    const hash = await rt.hashPassword(pw);
     const now = Date.now();
-    const id = run(
-      `INSERT INTO users (email, pw_hash, first, last, phone, dob, created_at, p_type, p_why, p_pers, p_interests, p_awake, p_seat, criteria, last_flight_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      mail, hash, first, last, phone, dob, now, newUserPrefs.type, newUserPrefs.why, newUserPrefs.pers, JSON.stringify(newUserPrefs.interests), newUserPrefs.awake, newUserPrefs.seat, JSON.stringify(defaultCriteria()), now,
-    ).id;
-    const created = get<UserRow>('SELECT * FROM users WHERE id = ?', id);
-    if (created) sendVerification(created, brandFolder(b.brand));
+    let id: number;
+    try {
+      id = (
+        await db.run(
+          `INSERT INTO users (email, pw_hash, first, last, phone, dob, created_at, p_type, p_why, p_pers, p_interests, p_awake, p_seat, criteria, last_flight_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          mail, hash, first, last, phone, dob, now, newUserPrefs.type, newUserPrefs.why, newUserPrefs.pers, JSON.stringify(newUserPrefs.interests), newUserPrefs.awake, newUserPrefs.seat, JSON.stringify(defaultCriteria()), now,
+        )
+      ).id;
+    } catch (error) {
+      if (/UNIQUE/i.test(String((error as Error)?.message))) throw taken; // two sign-ups with the same email at once
+      throw error;
+    }
+    const created = await getUser(db, id);
+    if (created) await sendVerification(rt, created, await brandFolder(rt, b.brand));
     // no session yet: the person has to confirm their email address first
-    send(res, 201, { ok: true, verify: true });
+    return json(201, { ok: true, verify: true });
   },
 
-  async 'POST /api/verify'({ req, res, ip }) {
-    rateLimit(`verify:${ip}`, 30, 3_600_000);
-    const b = await readJson(req);
-    const userId = consumeToken(typeof b.token === 'string' ? b.token : '', 'verify');
+  async 'POST /api/verify'({ request, db, ip }) {
+    await rateLimit(db, `verify:${ip}`, 30, HOUR);
+    const b = await readJson(request);
+    const userId = await consumeToken(db, typeof b.token === 'string' ? b.token : '', 'verify');
     if (userId === null) throw new HttpError(400, 'bad_token', 'This link has expired or was already used. Log in to get a new one.');
-    run('UPDATE users SET email_verified = 1 WHERE id = ?', userId);
-    send(res, 200, { ok: true });
+    await db.run('UPDATE users SET email_verified = 1 WHERE id = ?', userId);
+    return ok();
   },
 
-  async 'POST /api/verify/resend'({ req, res, ip }) {
-    rateLimit(`resend:${ip}`, 10, 3_600_000);
-    const b = await readJson(req);
-    const mail = typeof b.email === 'string' ? b.email.trim().toLowerCase() : '';
-    rateLimit(`resend-email:${mail}`, 3, 3_600_000);
-    const user = get<UserRow>('SELECT * FROM users WHERE email = ?', mail);
-    if (user && !user.email_verified) sendVerification(user, brandFolder(b.brand));
-    send(res, 200, { ok: true }); // same answer whether or not the address has an account
+  async 'POST /api/verify/resend'({ request, rt, db, ip }) {
+    await rateLimit(db, `resend:${ip}`, 10, HOUR);
+    const b = await readJson(request);
+    const mail = emailOf(b.email);
+    await rateLimit(db, `resend-email:${mail}`, 3, HOUR);
+    const user = await db.get<UserRow>('SELECT * FROM users WHERE email = ?', mail);
+    if (user && !user.email_verified) await sendVerification(rt, user, await brandFolder(rt, b.brand));
+    return ok(); // same answer whether or not the address has an account
   },
 
-  async 'POST /api/forgot'({ req, res, ip }) {
-    rateLimit(`forgot:${ip}`, 10, 3_600_000);
-    const b = await readJson(req);
-    const mail = typeof b.email === 'string' ? b.email.trim().toLowerCase() : '';
-    rateLimit(`forgot-email:${mail}`, 3, 3_600_000);
-    const user = get<UserRow>('SELECT * FROM users WHERE email = ?', mail);
-    if (user) sendReset(user, brandFolder(b.brand));
-    send(res, 200, { ok: true }); // same answer whether or not the address has an account
+  async 'POST /api/forgot'({ request, rt, db, ip }) {
+    await rateLimit(db, `forgot:${ip}`, 10, HOUR);
+    const b = await readJson(request);
+    const mail = emailOf(b.email);
+    await rateLimit(db, `forgot-email:${mail}`, 3, HOUR);
+    const user = await db.get<UserRow>('SELECT * FROM users WHERE email = ?', mail);
+    if (user) await sendReset(rt, user, await brandFolder(rt, b.brand));
+    return ok(); // same answer whether or not the address has an account
   },
 
-  async 'POST /api/reset'({ req, res, ip }) {
-    rateLimit(`reset:${ip}`, 20, 3_600_000);
-    const b = await readJson(req);
+  async 'POST /api/reset'({ request, rt, db, ip }) {
+    await rateLimit(db, `reset:${ip}`, 20, HOUR);
+    const b = await readJson(request);
     const pw = v.password(b.password);
-    const userId = consumeToken(typeof b.token === 'string' ? b.token : '', 'reset');
+    const userId = await consumeToken(db, typeof b.token === 'string' ? b.token : '', 'reset');
     if (userId === null) throw new HttpError(400, 'bad_token', 'This link has expired or was already used. Ask for a new one.');
     // using the emailed link also proves they own the address
-    run('UPDATE users SET pw_hash = ?, email_verified = 1 WHERE id = ?', await hashPassword(pw), userId);
-    destroyAllSessions(userId); // anyone logged in with the old password is logged out
-    send(res, 200, { ok: true });
+    await db.run('UPDATE users SET pw_hash = ?, email_verified = 1 WHERE id = ?', await rt.hashPassword(pw), userId);
+    await destroyAllSessions(db, userId); // anyone logged in with the old password is logged out
+    return ok();
   },
 
-  async 'POST /api/login'({ req, res, ip }) {
-    rateLimit(`login-ip:${ip}`, 30, 15 * 60_000);
-    const b = await readJson(req);
-    const mail = typeof b.email === 'string' ? b.email.trim().toLowerCase() : '';
+  async 'POST /api/login'({ request, rt, db, ip }) {
+    await rateLimit(db, `login-ip:${ip}`, 30, 15 * 60_000);
+    const b = await readJson(request);
+    const mail = emailOf(b.email);
     const pw = typeof b.password === 'string' ? b.password : '';
-    rateLimit(`login-email:${mail}`, 8, 15 * 60_000);
-    const user = get<UserRow>('SELECT * FROM users WHERE email = ?', mail);
-    const ok = await verifyPassword(pw, user?.pw_hash);
-    if (!user || !ok) throw new HttpError(401, 'bad_credentials', 'The email address or password is incorrect. Please try again.');
+    await rateLimit(db, `login-email:${mail}`, 8, 15 * 60_000);
+    const user = await db.get<UserRow>('SELECT * FROM users WHERE email = ?', mail);
+    const passed = await rt.verifyPassword(pw, user?.pw_hash);
+    if (!user || !passed) throw new HttpError(401, 'bad_credentials', 'The email address or password is incorrect. Please try again.');
     if (!user.email_verified) throw new HttpError(403, 'email_not_verified', 'Please confirm your email address first. We sent you a link when you signed up.');
-    const session = createSession(user.id, b.remember === true);
-    send(res, 200, { ok: true }, { 'set-cookie': sessionCookie(session.token, session.maxAge) });
+    const session = await createSession(db, rt.settings, user.id, b.remember === true);
+    return ok({}, { 'set-cookie': sessionCookie(session.token, session.maxAge, rt.settings.secureCookies) });
   },
 
-  'POST /api/logout'({ res, token }) {
-    destroySession(token);
-    send(res, 200, { ok: true }, { 'set-cookie': clearCookie() });
+  async 'POST /api/logout'({ rt, db, token }) {
+    await destroySession(db, token);
+    return ok({}, { 'set-cookie': sessionCookie('', 0, rt.settings.secureCookies) });
   },
 
-  'GET /api/sync'(ctx) {
+  async 'GET /api/sync'(ctx) {
     const me = requireUser(ctx);
     const after = Math.max(0, Math.floor(Number(ctx.query.get('after') ?? 0)) || 0);
-    send(ctx.res, 200, syncPayload(me, after));
+    return json(200, await syncPayload(ctx.db, me, after));
   },
 
   async 'PUT /api/prefs'(ctx) {
     const me = requireUser(ctx);
-    const b = await readJson(ctx.req);
-    const p = v.prefs(b.prefs);
-    run('UPDATE users SET p_type=?, p_why=?, p_pers=?, p_interests=?, p_awake=?, p_seat=? WHERE id=?', p.type, p.why, p.pers, JSON.stringify(p.interests), p.awake, p.seat, me.id);
-    send(ctx.res, 200, { ok: true });
+    const p = v.prefs((await readJson(ctx.request)).prefs);
+    await ctx.db.run('UPDATE users SET p_type=?, p_why=?, p_pers=?, p_interests=?, p_awake=?, p_seat=? WHERE id=?', p.type, p.why, p.pers, JSON.stringify(p.interests), p.awake, p.seat, me.id);
+    return ok();
   },
 
   async 'PUT /api/criteria'(ctx) {
     const me = requireUser(ctx);
-    const b = await readJson(ctx.req);
-    run('UPDATE users SET criteria = ? WHERE id = ?', JSON.stringify(v.criteria(b.criteria)), me.id);
-    send(ctx.res, 200, { ok: true });
+    const b = await readJson(ctx.request);
+    await ctx.db.run('UPDATE users SET criteria = ? WHERE id = ?', JSON.stringify(v.criteria(b.criteria)), me.id);
+    return ok();
   },
 
   async 'PUT /api/visible'(ctx) {
     const me = requireUser(ctx);
-    const b = await readJson(ctx.req);
+    const b = await readJson(ctx.request);
     if (typeof b.visible !== 'boolean') throw bad('Send true or false.');
-    run('UPDATE users SET visible = ? WHERE id = ?', b.visible ? 1 : 0, me.id);
-    send(ctx.res, 200, { ok: true });
+    await ctx.db.run('UPDATE users SET visible = ? WHERE id = ?', b.visible ? 1 : 0, me.id);
+    return ok();
   },
 
   async 'PUT /api/profile'(ctx) {
     const me = requireUser(ctx);
-    const b = await readJson(ctx.req);
+    const b = await readJson(ctx.request);
     const first = v.str(b.first, 'first', 1, 60);
     const last = v.optionalStr(b.last, 'last', 60);
     const bio = v.optionalStr(b.bio, 'bio', 160);
@@ -370,144 +343,152 @@ const routes: Record<string, Handler> = {
         tier = null;
       }
     }
-    run('UPDATE users SET first=?, last=?, bio=?, save_data=?, flyer_num=?, flyer_tier=? WHERE id=?', first, last, bio, saveData ? 1 : 0, num, tier, me.id);
-    send(ctx.res, 200, { ok: true });
+    await ctx.db.run('UPDATE users SET first=?, last=?, bio=?, save_data=?, flyer_num=?, flyer_tier=? WHERE id=?', first, last, bio, saveData ? 1 : 0, num, tier, me.id);
+    return ok();
   },
 
-  'DELETE /api/flyer'(ctx) {
+  async 'DELETE /api/flyer'(ctx) {
     const me = requireUser(ctx);
-    run('UPDATE users SET flyer_num = NULL, flyer_tier = NULL, save_data = 0 WHERE id = ?', me.id);
-    send(ctx.res, 200, { ok: true });
+    await ctx.db.run('UPDATE users SET flyer_num = NULL, flyer_tier = NULL, save_data = 0 WHERE id = ?', me.id);
+    return ok();
   },
 
   async 'PUT /api/flight'(ctx) {
     const me = requireUser(ctx);
-    const input = v.flight(await readJson(ctx.req));
+    const input = v.flight(await readJson(ctx.request));
     const key = `${input.number}|${input.date}`;
-    tx(() => {
-      // The first person to enter a flight sets its times; everyone after joins the same record.
-      // (In production these come from the airline's schedule, not from users.)
-      if (!getFlight(key)) {
-        run('INSERT INTO flights (key, number, from_code, to_code, departs_at, lands_at, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)', key, input.number, input.from, input.to, input.departsAt, input.landsAt, me.id, Date.now());
-      }
-      run('UPDATE users SET flight_key = ? WHERE id = ?', key, me.id);
-    });
-    send(ctx.res, 200, { ok: true });
+    // The first person to enter a flight sets its times; everyone after joins the same record.
+    // (In production these come from the airline's schedule, not from users.)
+    await ctx.db.batch([
+      stmt('INSERT OR IGNORE INTO flights (key, number, from_code, to_code, departs_at, lands_at, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)', key, input.number, input.from, input.to, input.departsAt, input.landsAt, me.id, Date.now()),
+      stmt('UPDATE users SET flight_key = ? WHERE id = ?', key, me.id),
+    ]);
+    return ok();
   },
 
-  'DELETE /api/flight'(ctx) {
+  async 'DELETE /api/flight'(ctx) {
     const me = requireUser(ctx);
-    run('UPDATE users SET flight_key = NULL WHERE id = ?', me.id);
-    send(ctx.res, 200, { ok: true });
+    await ctx.db.run('UPDATE users SET flight_key = NULL WHERE id = ?', me.id);
+    return ok();
   },
 
   async 'POST /api/connections'(ctx) {
     const me = requireUser(ctx);
-    rateLimit(`connect:${me.id}`, 40, 3_600_000);
-    const b = await readJson(ctx.req);
-    const target = getUser(Number(b.to));
-    if (!target || target.id === me.id || !me.flight_key || !me.visible) throw new HttpError(404, 'not_found', 'That person is not available.');
+    const { db } = ctx;
+    await rateLimit(db, `connect:${me.id}`, 40, HOUR);
+    const b = await readJson(ctx.request);
+    const notAvailable = new HttpError(404, 'not_found', 'That person is not available.');
+    const target = await getUser(db, Number(b.to));
+    if (!target || target.id === me.id || !me.flight_key || !me.visible) throw notAvailable;
     const sameFlight = target.flight_key === me.flight_key;
-    const existing = pairConnection(me.id, target.id);
-    if (isBlocked(me.id, target.id) || !(sameFlight || existing) || (!target.visible && !existing)) throw new HttpError(404, 'not_found', 'That person is not available.');
+    const existing = await pairConnection(db, me.id, target.id);
+    if ((await isBlocked(db, me.id, target.id)) || !(sameFlight || existing) || (!target.visible && !existing)) throw notAvailable;
 
     const now = Date.now();
     let accepted = false;
-    tx(() => {
-      if (!existing) {
-        run("INSERT INTO connections (from_id, to_id, status, flight_key, created_at, updated_at) VALUES (?, ?, 'requested', ?, ?, ?)", me.id, target.id, me.flight_key, now, now);
-      } else if (existing.status === 'requested' && existing.to_id === me.id) {
-        run("UPDATE connections SET status = 'connected', updated_at = ? WHERE id = ?", now, existing.id); // they asked first: it is mutual
-        accepted = true;
-      } else if (existing.status === 'declined' && existing.to_id === me.id) {
-        run("UPDATE connections SET from_id = ?, to_id = ?, status = 'requested', flight_key = ?, updated_at = ? WHERE id = ?", me.id, target.id, me.flight_key, now, existing.id);
-      }
-      // declined (by them) or already requested/connected: nothing changes, and nothing is revealed
-    });
-    send(ctx.res, 200, { ok: true, conn: accepted ? 'connected' : 'requested' });
+    if (!existing) {
+      await db.run("INSERT INTO connections (from_id, to_id, status, flight_key, created_at, updated_at) VALUES (?, ?, 'requested', ?, ?, ?)", me.id, target.id, me.flight_key, now, now);
+    } else if (existing.status === 'requested' && existing.to_id === me.id) {
+      await db.run("UPDATE connections SET status = 'connected', updated_at = ? WHERE id = ?", now, existing.id); // they asked first: it is mutual
+      accepted = true;
+    } else if (existing.status === 'declined' && existing.to_id === me.id) {
+      await db.run("UPDATE connections SET from_id = ?, to_id = ?, status = 'requested', flight_key = ?, updated_at = ? WHERE id = ?", me.id, target.id, me.flight_key, now, existing.id);
+    }
+    // declined (by them) or already requested/connected: nothing changes, and nothing is revealed
+    return ok({ conn: accepted ? 'connected' : 'requested' });
   },
 
   async 'POST /api/connections/respond'(ctx) {
     const me = requireUser(ctx);
-    const b = await readJson(ctx.req);
+    const { db } = ctx;
+    const b = await readJson(ctx.request);
     const from = Number(b.from);
-    const row = get<ConnRow>("SELECT * FROM connections WHERE from_id = ? AND to_id = ? AND status = 'requested'", from, me.id);
-    if (!row || isBlocked(me.id, from)) throw new HttpError(404, 'not_found', 'That request is no longer there.');
-    run('UPDATE connections SET status = ?, updated_at = ? WHERE id = ?', b.accept === true ? 'connected' : 'declined', Date.now(), row.id);
-    send(ctx.res, 200, { ok: true });
+    const row = await db.get<ConnRow>("SELECT * FROM connections WHERE from_id = ? AND to_id = ? AND status = 'requested'", from, me.id);
+    if (!row || (await isBlocked(db, me.id, from))) throw new HttpError(404, 'not_found', 'That request is no longer there.');
+    await db.run('UPDATE connections SET status = ?, updated_at = ? WHERE id = ?', b.accept === true ? 'connected' : 'declined', Date.now(), row.id);
+    return ok();
   },
 
   async 'POST /api/messages'(ctx) {
     const me = requireUser(ctx);
-    rateLimit(`msg:${me.id}`, 40, 60_000);
-    const b = await readJson(ctx.req);
+    const { db } = ctx;
+    await rateLimit(db, `msg:${me.id}`, 40, 60_000);
+    const b = await readJson(ctx.request);
     const to = Number(b.to);
     const text = v.str(b.text, 'text', 1, 1000);
-    const row = pairConnection(me.id, to);
-    if (!row || row.status !== 'connected' || isBlocked(me.id, to)) throw new HttpError(403, 'not_connected', 'You can only message people you are connected with.');
-    if (windowFor(row, Date.now()).closed) throw new HttpError(403, 'chat_closed', 'This chat closed 48 hours after landing.');
-    const id = run('INSERT INTO messages (from_id, to_id, text, created_at) VALUES (?, ?, ?, ?)', me.id, to, text, Date.now()).id;
-    send(ctx.res, 201, { ok: true, id });
+    const row = await pairConnection(db, me.id, to);
+    if (!row || row.status !== 'connected' || (await isBlocked(db, me.id, to))) throw new HttpError(403, 'not_connected', 'You can only message people you are connected with.');
+    if (windowFor(await getFlight(db, row.flight_key), Date.now()).closed) throw new HttpError(403, 'chat_closed', 'This chat closed 48 hours after landing.');
+    const id = (await db.run('INSERT INTO messages (from_id, to_id, text, created_at) VALUES (?, ?, ?, ?)', me.id, to, text, Date.now())).id;
+    return json(201, { ok: true, id });
   },
 
   async 'POST /api/read'(ctx) {
     const me = requireUser(ctx);
-    const b = await readJson(ctx.req);
-    run('UPDATE messages SET read_at = ? WHERE to_id = ? AND from_id = ? AND read_at IS NULL', Date.now(), me.id, Number(b.with));
-    send(ctx.res, 200, { ok: true });
+    const b = await readJson(ctx.request);
+    await ctx.db.run('UPDATE messages SET read_at = ? WHERE to_id = ? AND from_id = ? AND read_at IS NULL', Date.now(), me.id, Number(b.with));
+    return ok();
   },
 
   async 'POST /api/block'(ctx) {
     const me = requireUser(ctx);
-    const b = await readJson(ctx.req);
-    const target = getUser(Number(b.userId));
+    const { db } = ctx;
+    const b = await readJson(ctx.request);
+    const target = await getUser(db, Number(b.userId));
     if (!target || target.id === me.id) throw new HttpError(404, 'not_found', 'That person is not available.');
-    tx(() => {
-      run('INSERT OR IGNORE INTO blocks (blocker_id, blocked_id, created_at) VALUES (?, ?, ?)', me.id, target.id, Date.now());
-      run('DELETE FROM connections WHERE (from_id = ? AND to_id = ?) OR (from_id = ? AND to_id = ?)', me.id, target.id, target.id, me.id);
-      run('DELETE FROM messages WHERE (from_id = ? AND to_id = ?) OR (from_id = ? AND to_id = ?)', me.id, target.id, target.id, me.id);
-    });
-    send(ctx.res, 200, { ok: true });
+    await db.batch([
+      stmt('INSERT OR IGNORE INTO blocks (blocker_id, blocked_id, created_at) VALUES (?, ?, ?)', me.id, target.id, Date.now()),
+      stmt('DELETE FROM connections WHERE (from_id = ? AND to_id = ?) OR (from_id = ? AND to_id = ?)', me.id, target.id, target.id, me.id),
+      stmt('DELETE FROM messages WHERE (from_id = ? AND to_id = ?) OR (from_id = ? AND to_id = ?)', me.id, target.id, target.id, me.id),
+    ]);
+    return ok();
   },
 
   async 'POST /api/report'(ctx) {
     const me = requireUser(ctx);
-    rateLimit(`report:${me.id}`, 10, 3_600_000);
-    const b = await readJson(ctx.req);
-    const target = getUser(Number(b.userId));
+    const { db } = ctx;
+    await rateLimit(db, `report:${me.id}`, 10, HOUR);
+    const b = await readJson(ctx.request);
+    const target = await getUser(db, Number(b.userId));
     if (!target || target.id === me.id) throw new HttpError(404, 'not_found', 'That person is not available.');
     const reason = v.str(b.reason, 'reason', 3, 500);
-    run('INSERT INTO reports (reporter_id, reported_id, reason, created_at) VALUES (?, ?, ?, ?)', me.id, target.id, reason, Date.now());
-    send(ctx.res, 200, { ok: true });
+    await db.run('INSERT INTO reports (reporter_id, reported_id, reason, created_at) VALUES (?, ?, ?, ?)', me.id, target.id, reason, Date.now());
+    return ok();
   },
 
   async 'DELETE /api/account'(ctx) {
     const me = requireUser(ctx);
-    const b = await readJson(ctx.req);
-    if (!(await verifyPassword(typeof b.password === 'string' ? b.password : '', me.pw_hash))) throw new HttpError(403, 'bad_credentials', 'That password is not correct.', 'password');
-    run('DELETE FROM users WHERE id = ?', me.id);
-    send(ctx.res, 200, { ok: true }, { 'set-cookie': clearCookie() });
+    const b = await readJson(ctx.request);
+    if (!(await ctx.rt.verifyPassword(typeof b.password === 'string' ? b.password : '', me.pw_hash))) throw new HttpError(403, 'bad_credentials', 'That password is not correct.', 'password');
+    await ctx.db.run('DELETE FROM users WHERE id = ?', me.id);
+    return ok({}, { 'set-cookie': sessionCookie('', 0, ctx.rt.settings.secureCookies) });
   },
 };
 
-// ---------------------------------------------------------------- entry point used by main.ts
+// ---------------------------------------------------------------- entry point used by the Node server and the Worker
 
-export async function handleApi(req: IncomingMessage, res: ServerResponse, url: URL): Promise<void> {
-  const method = req.method ?? 'GET';
-  const handler = routes[`${method} ${url.pathname}`];
-  if (!handler) {
-    const known = Object.keys(routes).some((k) => k.endsWith(` ${url.pathname}`));
-    throw new HttpError(known ? 405 : 404, known ? 'method' : 'not_found', known ? 'That method is not allowed.' : 'Not found.');
+/** Handles one /api/ request. Never throws: problems become JSON error responses. `ip` is the visitor's address. */
+export async function handleApi(request: Request, rt: Runtime, ip: string): Promise<Response> {
+  try {
+    const url = new URL(request.url);
+    const method = request.method;
+    const handler = routes[`${method} ${url.pathname}`];
+    if (!handler) {
+      const known = Object.keys(routes).some((k) => k.endsWith(` ${url.pathname}`));
+      throw new HttpError(known ? 405 : 404, known ? 'method' : 'not_found', known ? 'That method is not allowed.' : 'Not found.');
+    }
+    // Only same-origin pages may change anything (a simple CSRF guard on top of SameSite cookies).
+    if (method !== 'GET') {
+      const origin = request.headers.get('origin');
+      if (origin && new URL(origin).host !== url.host) throw new HttpError(403, 'forbidden', 'Cross-site requests are not allowed.');
+    }
+    rateLimitMemory(`ip:${ip}`, 600, 60_000);
+    const token = parseCookies(request.headers.get('cookie')).wm_session;
+    const user = await userForToken(rt.db, token);
+    return await handler({ request, rt, db: rt.db, user, token, query: url.searchParams, ip });
+  } catch (error) {
+    if (error instanceof HttpError) return errorResponse(error);
+    console.error(error);
+    return json(500, { error: 'server', message: 'Something went wrong on our side. Please try again.' });
   }
-  // Only same-origin pages may change anything (a simple CSRF guard on top of SameSite cookies).
-  if (method !== 'GET') {
-    const origin = req.headers.origin;
-    if (origin && new URL(origin).host !== req.headers.host) throw new HttpError(403, 'forbidden', 'Cross-site requests are not allowed.');
-  }
-  const ip = clientIp(req);
-  rateLimit(`ip:${ip}`, 600, 60_000);
-  const token = parseCookies(req.headers.cookie).wm_session;
-  const userId = userIdForToken(token);
-  const user = userId ? (getUser(userId) ?? null) : null;
-  await handler({ req, res, user, token, query: url.searchParams, ip });
 }

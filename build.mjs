@@ -198,6 +198,16 @@ async function buildSite() {
   await mkdir(dist, { recursive: true });
   const built = [];
   for (const id of chosen) built.push(await buildBrand(id, styles));
+
+  // Cloudflare: security headers for the static pages, a redirect from /<brand>/ to the login page, and the brand list the Worker uses
+  const headers = JSON.parse(await readFile(path.join(root, 'server/security-headers.json'), 'utf8'));
+  await writeFile(path.join(dist, '_headers'), '/*\n' + Object.entries(headers).map(([k, v]) => `  ${k}: ${v}`).join('\n') + '\n');
+  for (const id of chosen) {
+    await writeFile(path.join(dist, id, 'index.html'), '<!doctype html><meta charset="utf-8"><meta http-equiv="refresh" content="0;url=login.html"><title>WingMate</title><a href="login.html">Log in</a>\n');
+  }
+  const airlines = Object.fromEntries(built.map(({ brand }) => [brand.id, brand.airline]));
+  await mkdir(path.join(root, 'worker'), { recursive: true });
+  await writeFile(path.join(root, 'worker/brands.generated.json'), JSON.stringify(airlines, null, 2) + '\n');
   await buildServer();
   await rm(path.join(root, '.build'), { recursive: true, force: true });
 

@@ -1,0 +1,5 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": { "lib": ["ES2022", "DOM"], "types": [], "target": "ES2022", "resolveJsonModule": true },
+  "include": ["worker", "server/api.ts", "server/auth.ts", "server/http.ts", "server/jobs.ts", "server/rows.ts", "server/runtime.ts", "server/schema.ts", "server/settings.ts", "server/smtp.ts", "server/validate.ts", "src/ts/shared/stage.ts", "src/ts/dashboard/options.ts", "src/ts/dashboard/types.ts"]
+}

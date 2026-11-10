@@ -1,10 +1,16 @@
-import { createServer, type ServerResponse } from 'node:http';
+import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
+import { existsSync, readFileSync } from 'node:fs';
 import { readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { handleApi } from './api';
 import { config } from './config';
-import { HttpError, send } from './http';
+import { HttpError, errorResponse } from './http';
 import { runJobs } from './jobs';
+import { openDatabase } from './node/db';
+import { makeSendMail } from './node/mailer';
+import { hashPassword, verifyPassword } from './node/password';
+import type { Runtime } from './runtime';
+import securityHeaders from './security-headers.json';
 
 const MIME: Record<string, string> = {
   '.html': 'text/html; charset=utf-8',
@@ -18,12 +24,27 @@ const MIME: Record<string, string> = {
 };
 
 // Pages carry their own CSS and scripts inline, so the policy allows inline code from this site only.
-const SECURITY_HEADERS = {
-  'x-content-type-options': 'nosniff',
-  'referrer-policy': 'same-origin',
-  'x-frame-options': 'DENY',
-  'content-security-policy':
-    "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'",
+const SECURITY_HEADERS: Record<string, string> = securityHeaders;
+
+const db = openDatabase(config.dataDir);
+const settings = config.settings;
+
+const runtime: Runtime = {
+  db,
+  settings,
+  hashPassword,
+  verifyPassword,
+  sendMail: makeSendMail(settings, config.dataDir),
+  async brand(folder) {
+    if (!existsSync(path.join(config.publicDir, folder))) return null;
+    try {
+      const raw = JSON.parse(readFileSync(path.join(config.publicDir, '..', 'brands', folder, 'brand.json'), 'utf8')) as { airline?: unknown };
+      if (typeof raw.airline === 'string') return raw.airline;
+    } catch {
+      /* fall through */
+    }
+    return 'WingMate';
+  },
 };
 
 async function serveStatic(pathname: string, res: ServerResponse): Promise<void> {
@@ -46,29 +67,84 @@ async function serveStatic(pathname: string, res: ServerResponse): Promise<void>
   }
 }
 
-runJobs();
-setInterval(() => {
+const MAX_BODY = 64 * 1024;
+
+async function toRequest(req: IncomingMessage): Promise<Request> {
+  const headers = new Headers();
+  for (const [name, value] of Object.entries(req.headers)) {
+    if (value === undefined) continue;
+    if (Array.isArray(value)) for (const v of value) headers.append(name, v);
+    else headers.set(name, value);
+  }
+  const method = req.method ?? 'GET';
+  let body: Buffer | undefined;
+  if (method !== 'GET' && method !== 'HEAD') {
+    const chunks: Buffer[] = [];
+    let size = 0;
+    for await (const chunk of req) {
+      size += (chunk as Buffer).length;
+      if (size > MAX_BODY) throw new HttpError(413, 'too_large', 'That request is too large.');
+      chunks.push(chunk as Buffer);
+    }
+    body = Buffer.concat(chunks);
+  }
+  // the address is built from the Host header, so the same-origin check compares like with like
+  return new Request(`http://${req.headers.host ?? 'localhost'}${req.url ?? '/'}`, { method, headers, ...(body ? { body } : {}) });
+}
+
+function clientIp(req: IncomingMessage): string {
+  if (settings.trustProxy) {
+    const forwarded = req.headers['x-forwarded-for'];
+    const first = (Array.isArray(forwarded) ? forwarded[0] : forwarded)?.split(',')[0]?.trim();
+    if (first) return first;
+  }
+  return req.socket.remoteAddress ?? 'unknown';
+}
+
+async function writeResponse(res: ServerResponse, response: Response, extra: Record<string, string> = {}): Promise<void> {
+  const headers: Record<string, string | string[]> = { ...extra };
+  response.headers.forEach((value, name) => {
+    if (name !== 'set-cookie') headers[name] = value;
+  });
+  const cookies = response.headers.getSetCookie();
+  if (cookies.length) headers['set-cookie'] = cookies;
+  res.writeHead(response.status, headers);
+  res.end(Buffer.from(await response.arrayBuffer()));
+}
+
+async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> {
+  const url = new URL(req.url ?? '/', 'http://localhost');
+  if (url.pathname.startsWith('/api/')) {
+    await writeResponse(res, await handleApi(await toRequest(req), runtime, clientIp(req)));
+    return;
+  }
+  if (req.method === 'GET' || req.method === 'HEAD') return serveStatic(url.pathname, res);
+  throw new HttpError(405, 'method', 'Not allowed.');
+}
+
+async function housekeeping(): Promise<void> {
   try {
-    runJobs();
+    await runJobs(db, settings);
   } catch (error) {
     console.error('Housekeeping failed:', error);
   }
-}, 3_600_000).unref();
+}
+
+await housekeeping();
+setInterval(() => void housekeeping(), 3_600_000).unref();
 
 const server = createServer((req, res) => {
-  const url = new URL(req.url ?? '/', 'http://localhost');
-  const work = url.pathname.startsWith('/api/') ? handleApi(req, res, url) : req.method === 'GET' || req.method === 'HEAD' ? serveStatic(url.pathname, res) : Promise.reject(new HttpError(405, 'method', 'Not allowed.'));
-  work.catch((error: unknown) => {
+  handle(req, res).catch(async (error: unknown) => {
     if (res.headersSent) {
       res.end();
       return;
     }
     if (error instanceof HttpError) {
-      send(res, error.status, { error: error.code, message: error.message, ...(error.field ? { field: error.field } : {}) }, SECURITY_HEADERS);
+      await writeResponse(res, errorResponse(error), SECURITY_HEADERS);
       return;
     }
     console.error(error);
-    send(res, 500, { error: 'server', message: 'Something went wrong on our side. Please try again.' });
+    await writeResponse(res, new Response(JSON.stringify({ error: 'server', message: 'Something went wrong on our side. Please try again.' }), { status: 500, headers: { 'content-type': 'application/json' } }));
   });
 });
 
