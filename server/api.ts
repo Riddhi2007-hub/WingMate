@@ -11,6 +11,7 @@ import type { ConnRow, FlightRow, UserRow } from './rows';
 import type { Db, Runtime } from './runtime';
 import { stmt } from './runtime';
 import * as v from './validate';
+import { simulatedTaken, validSeat } from './seats';
 import { MAX_MEMBERS, groupName, groupsFor, inviteAll, invitable, membership } from './groups';
 import { KINDS, applyMove, gameDto, hangmanWord, initialState, startClock, type GameRow, type Kind } from './games';
 
@@ -450,6 +451,7 @@ const routes: Record<string, Handler> = {
     const key = ctx.query.get('key');
     await ctx.db.batch([
       key ? stmt('DELETE FROM user_flights WHERE user_id = ? AND flight_key = ?', me.id, key) : stmt('DELETE FROM user_flights WHERE user_id = ?', me.id),
+      key ? stmt('DELETE FROM seats WHERE user_id = ? AND flight_key = ?', me.id, key) : stmt('DELETE FROM seats WHERE user_id = ?', me.id),
       stmt(SET_FIRST_FLIGHT, me.id),
     ]);
     return ok();
@@ -540,6 +542,53 @@ const routes: Record<string, Handler> = {
     const reason = v.str(b.reason, 'reason', 3, 500);
     await db.run('INSERT INTO reports (reporter_id, reported_id, reason, created_at) VALUES (?, ?, ?, ?)', me.id, target.id, reason, Date.now());
     return ok();
+  },
+
+  async 'GET /api/seats'(ctx) {
+    const me = requireUser(ctx);
+    const { db } = ctx;
+    const key = ctx.query.get('flight') ?? '';
+    const onIt = await db.get('SELECT 1 AS x FROM user_flights WHERE user_id = ? AND flight_key = ?', me.id, key);
+    if (!onIt) throw new HttpError(404, 'not_found', 'You are not on that flight.');
+    const rows = await db.all<{ user_id: number; seat: string; first: string; last: string }>(
+      'SELECT s.user_id, s.seat, u.first, u.last FROM seats s JOIN users u ON u.id = s.user_id WHERE s.flight_key = ?',
+      key,
+    );
+    // names are shown only for me and the people I am connected with; anyone else is just a taken seat
+    const conns = await db.all<{ other: number }>(
+      "SELECT CASE WHEN from_id = ? THEN to_id ELSE from_id END AS other FROM connections WHERE status = 'connected' AND (from_id = ? OR to_id = ?)",
+      me.id, me.id, me.id,
+    );
+    const friends = new Set(conns.map((c) => c.other));
+    const mine = rows.find((r) => r.user_id === me.id)?.seat ?? null;
+    const mates = rows.filter((r) => friends.has(r.user_id)).map((r) => ({ id: String(r.user_id), name: r.last ? `${r.first} ${r.last.charAt(0)}.` : r.first, seat: r.seat }));
+    const others = rows.filter((r) => r.user_id !== me.id && !friends.has(r.user_id)).map((r) => r.seat);
+    const wing = new Set(rows.map((r) => r.seat));
+    const taken = [...new Set([...simulatedTaken(key).filter((s) => !wing.has(s)), ...others])];
+    return ok({ flight: key, mine, mates, taken });
+  },
+
+  async 'PUT /api/seats'(ctx) {
+    const me = requireUser(ctx);
+    const { db } = ctx;
+    await rateLimit(db, `seat:${me.id}`, 60, HOUR);
+    const b = await readJson(ctx.request);
+    const key = typeof b.flight === 'string' ? b.flight : '';
+    const onIt = await db.get('SELECT 1 AS x FROM user_flights WHERE user_id = ? AND flight_key = ?', me.id, key);
+    if (!onIt) throw new HttpError(404, 'not_found', 'You are not on that flight.');
+    if (b.seat === null) {
+      await db.run('DELETE FROM seats WHERE flight_key = ? AND user_id = ?', key, me.id);
+      return ok({ seat: null });
+    }
+    if (!validSeat(b.seat)) throw bad('Choose a seat on the map.', 'seat');
+    const seat = b.seat;
+    const holder = await db.get<{ user_id: number }>('SELECT user_id FROM seats WHERE flight_key = ? AND seat = ?', key, seat);
+    if ((holder && holder.user_id !== me.id) || simulatedTaken(key).includes(seat)) throw new HttpError(409, 'seat_taken', 'Sorry, that seat was just taken. Pick another one.');
+    await db.batch([
+      { sql: 'DELETE FROM seats WHERE flight_key = ? AND user_id = ?', params: [key, me.id] },
+      { sql: 'INSERT INTO seats (flight_key, user_id, seat, created_at) VALUES (?, ?, ?, ?)', params: [key, me.id, seat, Date.now()] },
+    ]);
+    return ok({ seat });
   },
 
   async 'POST /api/groups'(ctx) {

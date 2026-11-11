@@ -35,7 +35,7 @@ function requestsHTML(): string {
   return `<div class="conv-head small muted" style="padding:8px 12px">Requests</div>${incoming
     .map(
       (p) =>
-        `<div class="conv">${avatar(p)}<span class="nm"><b>${esc(p.name)}</b><span>wants to connect</span></span><span><button class="btn sm" data-act="accept" data-id="${esc(p.id)}">Accept</button> <button class="btn sm ghost" data-act="decline" data-id="${esc(p.id)}">Decline</button></span></div>`,
+        `<div class="conv req">${avatar(p)}<span class="nm"><b>${esc(p.name)}</b><span>wants to connect</span></span><span><button class="btn sm" data-act="accept" data-id="${esc(p.id)}">Accept</button> <button class="btn sm ghost" data-act="decline" data-id="${esc(p.id)}">Decline</button></span></div>`,
     )
     .join('')}`;
 }
@@ -97,7 +97,7 @@ export function renderMessages(): void {
     .join('');
 
   thread.innerHTML = `
-    <div class="th-head">${avatar(person)}<div class="nm"><b>${esc(person.name)}</b><span>${esc(stageLabel(closed ? 'closed' : stage))}</span>${flightTags(person)}</div><span class="th-tools">${!closed && destinationsFor(person).length ? `<button class="btn sm" data-plan-open="${esc(person.id)}" type="button">Plan together</button> ` : ''}<button class="btn sm ghost" data-block="${esc(person.id)}" type="button">Block</button> <button class="btn sm ghost" data-report="${esc(person.id)}" type="button">Report</button></span></div>
+    <div class="th-head">${avatar(person)}<div class="nm"><b>${esc(person.name)}</b><span>${esc(stageLabel(closed ? 'closed' : stage))}</span>${flightTags(person)}</div><span class="th-tools">${!closed && destinationsFor(person).length ? `<button class="btn sm" data-plan-open="${esc(person.id)}" type="button">Plan together</button> ` : ''}${!closed && person.flights.length ? `<button class="btn sm ghost" data-seats-open="${esc(person.id)}" type="button">&#128186; Seats</button> ` : ''}<button class="btn sm ghost" data-block="${esc(person.id)}" type="button">Block</button> <button class="btn sm ghost" data-report="${esc(person.id)}" type="button">Report</button></span></div>
     <div class="banners">${banner}${commonStripHTML(person)}</div>
     <div class="bubbles" id="bubbles" aria-live="polite">${bubbles}</div>
     <form class="composer" id="composer"><input type="text" id="msgInput" maxlength="1000" placeholder="${closed ? 'This chat is closed' : 'Write a message'}" ${closed ? 'disabled' : ''} aria-label="Message" autocomplete="off"><button class="btn" ${closed ? 'disabled' : ''}>Send</button></form>`;

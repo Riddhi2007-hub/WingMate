@@ -300,6 +300,31 @@ try {
     r = await p2.call('GET', '/api/sync?gafter=' + gm[0].id); ok('group messages page by cursor', r.json.groupMessages.length === 0);
     r = await p2.call('POST', '/api/groups/leave', { id: gid }); r = await p2.call('GET', '/api/sync'); ok('leaving a group', !r.json.groups.some(g => g.id === gid));
   }
+  // seats: pick a seat, see your travel mates' seats, and never two guests in one seat
+  {
+    const s1 = new Client(), s2 = new Client(), s3 = new Client();
+    await signup(s1, 'Quinn'); await signup(s2, 'Rosa'); await signup(s3, 'Sam');
+    const d = soon(150); const leg = { number: 'AK 999', date: dateStr(d), from: 'KUL', to: 'SIN', departsAt: d, landsAt: d + 1 * 3600e3 };
+    for (const c of [s1, s2, s3]) await c.call('PUT', '/api/flight', leg);
+    const key = 'AK 999|' + dateStr(d);
+    const rosa = (await s1.call('GET', '/api/sync')).json.people.find(p => p.name === 'Rosa T.').id;
+    await s1.call('POST', '/api/connections', { to: rosa });
+    const quinn = (await s2.call('GET', '/api/sync')).json.people.find(p => p.name === 'Quinn T.').id;
+    await s2.call('POST', '/api/connections/respond', { from: quinn, accept: true });
+    r = await s1.call('GET', '/api/seats?flight=' + encodeURIComponent(key));
+    ok('seat map loads with some seats already taken', r.status === 200 && r.json.mine === null && r.json.taken.length > 20);
+    const free = []; for (let row = 1; row <= 31 && free.length < 3; row++) for (const l of 'ABCDEF') { const s = row + l; if (!r.json.taken.includes(s) && free.length < 3) free.push(s); }
+    ok('a taken seat cannot be picked', (await s1.call('PUT', '/api/seats', { flight: key, seat: r.json.taken[0] })).status === 409);
+    ok('a made-up seat is refused', (await s1.call('PUT', '/api/seats', { flight: key, seat: '40Z' })).status === 400);
+    ok('pick a free seat', (await s1.call('PUT', '/api/seats', { flight: key, seat: free[0] })).json.seat === free[0]);
+    ok('nobody else can take it', (await s3.call('PUT', '/api/seats', { flight: key, seat: free[0] })).status === 409);
+    await s2.call('PUT', '/api/seats', { flight: key, seat: free[1] });
+    await s3.call('PUT', '/api/seats', { flight: key, seat: free[2] });
+    r = await s1.call('GET', '/api/seats?flight=' + encodeURIComponent(key));
+    ok('you see your seat and your travel mate by name', r.json.mine === free[0] && r.json.mates.length === 1 && r.json.mates[0].seat === free[1] && r.json.mates[0].name === 'Rosa T.');
+    ok('strangers show only as taken seats', r.json.taken.includes(free[2]) && !r.json.mates.some(m => m.seat === free[2]));
+    ok('not on the flight, no seat map', (await new Client().call('GET', '/api/seats?flight=' + encodeURIComponent(key))).status === 401);
+  }
 } finally {
   try { await stop(); } catch {}
   rmSync(dir, { recursive: true, force: true });

@@ -15,6 +15,7 @@ import { attachGlobe, initFlight, stageUI } from './flight';
 import { initGlobe } from './globe';
 import { initPlan } from './views/plan';
 import { initGroups } from './views/groups';
+import { initSeats } from './views/seats';
 import { initPhotoFallback } from './scenes';
 import { state } from './state';
 import { registerRefresh, registerView, initRouter, show, startView } from './router';
@@ -78,6 +79,7 @@ async function main(): Promise<void> {
   initFlight();
   initPlan();
   initGroups(() => renderAll());
+  initSeats();
   initPhotoFallback();
 
   configureSync({ changed: renderAll, newMessage: onIncoming });

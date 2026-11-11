@@ -37,7 +37,7 @@ export function groupInvitesHTML(): string {
     .filter((g) => g.myStatus === 'invited')
     .map((g) => {
       const names = g.members.filter((m) => m.status === 'joined').map((m) => m.name).join(', ');
-      return `<div class="conv">${groupAvatar(g)}<span class="nm"><b>${esc(g.name)}</b><span>Invited by ${esc(g.invitedBy ?? 'someone')}</span><small class="cflight">&#128101; ${esc(names)}</small></span><span><button class="btn sm" data-group-accept="${esc(g.id)}">Join</button> <button class="btn sm ghost" data-group-decline="${esc(g.id)}">Decline</button></span></div>`;
+      return `<div class="conv req">${groupAvatar(g)}<span class="nm"><b>${esc(g.name)}</b><span>Invited by ${esc(g.invitedBy ?? 'someone')}</span><small class="cflight">&#128101; ${esc(names)}</small></span><span><button class="btn sm" data-group-accept="${esc(g.id)}">Join</button> <button class="btn sm ghost" data-group-decline="${esc(g.id)}">Decline</button></span></div>`;
     })
     .join('');
 }
@@ -56,7 +56,7 @@ export function renderGroupThread(g: GroupDto): void {
     .join('');
   const canAdd = g.members.length < MAX && connectedPeople().some((p) => !g.members.some((m) => m.id === p.id));
   $('#thread').innerHTML = `
-    <div class="th-head">${groupAvatar(g)}<div class="nm"><b>${esc(g.name)}</b><span>${memberLine}</span></div><span class="th-tools">${canAdd ? `<button class="btn sm" data-group-add="${esc(g.id)}" type="button">Add people</button> ` : ''}<button class="btn sm ghost" data-group-leave="${esc(g.id)}" type="button">Leave</button></span></div>
+    <div class="th-head">${groupAvatar(g)}<div class="nm"><b>${esc(g.name)}</b><span>${memberLine}</span></div><span class="th-tools">${state.flights.length ? `<button class="btn sm ghost" data-seats-open="g:${esc(g.id)}" type="button">&#128186; Seats</button> ` : ''}${canAdd ? `<button class="btn sm" data-group-add="${esc(g.id)}" type="button">Add people</button> ` : ''}<button class="btn sm ghost" data-group-leave="${esc(g.id)}" type="button">Leave</button></span></div>
     <div class="banners"><div class="banner">Group chat. Everyone here accepted an invite. Only people you are connected with can be added.</div></div>
     <div class="bubbles" id="bubbles" aria-live="polite">${bubbles || '<p class="muted small" style="text-align:center;margin-top:20px">No messages yet. Say hello!</p>'}</div>
     <form class="composer" id="composer"><input type="text" id="msgInput" maxlength="1000" placeholder="Message ${esc(g.name)}" aria-label="Message" autocomplete="off"><button class="btn">Send</button></form>`;

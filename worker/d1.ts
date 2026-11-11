@@ -24,8 +24,8 @@ let ready: Promise<void> | undefined;
 /** Creates the tables the first time (and is a single quick check afterwards). Every statement is safe to repeat, so when a newer table is missing (after an update) the whole list is run again. */
 export function ensureSchema(database: D1Database): Promise<void> {
   ready ??= (async () => {
-    const found = await database.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name IN ('rate_limits', 'user_flights', 'games', 'group_messages')").all();
-    if (found.results.length >= 4) return;
+    const found = await database.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name IN ('rate_limits', 'user_flights', 'games', 'group_messages', 'seats')").all();
+    if (found.results.length >= 5) return;
     await database.batch(SCHEMA.map((sql) => database.prepare(sql)));
   })().catch((error: unknown) => {
     ready = undefined; // try again on the next request

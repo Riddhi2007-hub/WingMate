@@ -68,6 +68,7 @@ export function stageUI(): void {
     $('#flightMeta').textContent = 'Add your flight to see who else is on it.';
     $('#flightBtn').textContent = 'Add my flight';
     $('#addLegBtn').hidden = true;
+    $('#seatBtn').hidden = true;
     $('#legs').hidden = true;
     return;
   }
@@ -87,6 +88,7 @@ export function stageUI(): void {
   $('#flightMeta').innerHTML = `${esc(flight.number)} · ${esc(date)}`;
   $('#flightBtn').textContent = 'Change flight';
   $('#addLegBtn').hidden = state.flights.length >= MAX_FLIGHTS;
+  $('#seatBtn').hidden = false;
   renderLegs();
 }
 

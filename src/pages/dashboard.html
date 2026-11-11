@@ -56,7 +56,7 @@
         <div class="line"><i></i><svg class="i" viewBox="0 0 24 24" style="transform:rotate(90deg)"><path d="M12 2l2 8 8 4v2l-8-2-1 6 3 2v2l-4-1-4 1v-2l3-2-1-6-8 2v-2l8-4z"></path></svg><i></i></div>
         <div><b id="routeTo">---</b><span id="toTime"></span></div>
       </div>
-      <div class="meta"><span id="flightMeta"></span> <button class="btn ghost sm" id="flightBtn" type="button">Add my flight</button> <button class="btn ghost sm" id="addLegBtn" type="button" hidden>+ Connecting flight</button></div>
+      <div class="meta"><span id="flightMeta"></span> <button class="btn ghost sm" id="flightBtn" type="button">Add my flight</button> <button class="btn ghost sm" id="addLegBtn" type="button" hidden>+ Connecting flight</button> <button class="btn ghost sm" id="seatBtn" type="button" data-seats-open="" hidden>&#128186; Choose seat</button></div>
       <div class="legs" id="legs" hidden></div>
       <label class="switch"><input type="checkbox" id="visibleToggle"><span class="track"></span><span>Open to connect with fellow {{guests}}</span></label>
     </div>
@@ -327,6 +327,22 @@
     <p class="small" id="gmErr" style="color:#b00020;margin-top:10px" role="alert"></p>
     <div class="modal-actions"><button class="btn ghost" id="gmCancel" type="button">Cancel</button><button class="btn" type="submit">Send invites</button></div>
   </form>
+</div>
+<div class="modal" id="seatModal" hidden>
+  <div class="modal-box seat-box" role="dialog" aria-modal="true" aria-labelledby="seatTitle">
+    <div class="seat-head"><div><h3 id="seatTitle">Choose your seat</h3><p class="muted small" id="seatFlight"></p></div><button class="btn ghost sm" id="seatCancel" type="button">Close</button></div>
+    <div class="pl-tabs" id="seatTabs"></div>
+    <div class="seat-legend"><span><i class="seat hot"></i>Hot Seat (extra legroom)</span><span><i class="seat std"></i>Standard</span><span><i class="seat taken"></i>Taken</span><span><i class="seat mate"></i>Travel mate</span><span><i class="seat on"></i>Your pick</span></div>
+    <p class="small seat-mates" id="seatMates"></p>
+    <div class="seat-scroll" id="seatMap"></div>
+    <div class="seat-bar">
+      <div class="seat-pick" id="seatPick"></div>
+      <label class="seat-share" id="seatShareRow"><input type="checkbox" id="seatShare" checked> Share in this chat</label>
+      <button class="btn ghost sm" id="seatClear" type="button" hidden>Clear my seat</button>
+      <button class="btn" id="seatConfirm" type="button" disabled>Confirm seat</button>
+    </div>
+    <p class="muted small" style="margin-top:8px">In the live AirAsia app this is saved to your booking. Hot Seats may have a fee.</p>
+  </div>
 </div>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 

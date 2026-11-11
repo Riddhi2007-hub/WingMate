@@ -81,6 +81,14 @@ export const SCHEMA: string[] = [
   created_at INTEGER NOT NULL
 )`,
   `CREATE INDEX IF NOT EXISTS gmsg_group ON group_messages(group_id, id)`,
+  `CREATE TABLE IF NOT EXISTS seats (
+  flight_key TEXT NOT NULL,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  seat TEXT NOT NULL,
+  created_at INTEGER NOT NULL,
+  PRIMARY KEY (flight_key, user_id),
+  UNIQUE (flight_key, seat)
+)`,
   `CREATE TABLE IF NOT EXISTS connections (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   from_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
