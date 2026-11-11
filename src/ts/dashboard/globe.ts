@@ -166,6 +166,16 @@ export function initGlobe(host: HTMLElement): GlobeApi {
   let lastY = 0;
   let moved = 0;
   let spin = 0;
+  /** Zoom the person asked for (buttons, pinch, trackpad), on top of the camera's own zoom. */
+  let zoom = 1;
+  let zoomTarget = 1;
+  const MAX_ZOOM = 4;
+  const setZoom = (z: number): void => {
+    zoomTarget = clamp(z, 1, MAX_ZOOM);
+    userUntil = performance.now() + 4000;
+    glideTo = null;
+    kick();
+  };
   let hover: (typeof pins)[number] | null = null;
   let pinned: (typeof pins)[number] | null = null;
   let glideTo: View | null = null;
@@ -216,6 +226,8 @@ export function initGlobe(host: HTMLElement): GlobeApi {
     const dt = Math.min(64, now - (last || now));
     last = now;
     const userActive = dragging || now < userUntil;
+    zoom += (zoomTarget - zoom) * (reduced ? 1 : 1 - Math.exp(-dt / 110));
+    if (Math.abs(zoomTarget - zoom) < 0.002) zoom = zoomTarget;
 
     let target: View | null = null;
     let draw = 0;
@@ -256,7 +268,7 @@ export function initGlobe(host: HTMLElement): GlobeApi {
     const g = c2d;
     g.setTransform(dpr, 0, 0, dpr, 0, 0);
     g.clearRect(0, 0, w, h);
-    const R = radius() * cam.scale;
+    const R = radius() * cam.scale * zoom;
     const cx = w / 2;
     const cy = h / 2;
 
@@ -430,7 +442,7 @@ export function initGlobe(host: HTMLElement): GlobeApi {
       const pulse = 0.5 + 0.5 * Math.sin(now / 700 + p.ap.lon);
       g.fillStyle = `rgba(255,236,226,${route ? 0.5 : 0.65 + pulse * 0.3})`;
       g.beginPath();
-      g.arc(p.x, p.y, route ? 1.7 : 2.2, 0, Math.PI * 2);
+      g.arc(p.x, p.y, (route ? 1.7 : 2.2) * Math.min(1.8, 0.7 + zoom * 0.3), 0, Math.PI * 2);
       g.fill();
     }
 
@@ -576,7 +588,25 @@ export function initGlobe(host: HTMLElement): GlobeApi {
     return [e.clientX - r.left, e.clientY - r.top];
   };
 
+  // two fingers on the globe zoom it (instead of the whole page)
+  const touches = new Map<number, [number, number]>();
+  let pinchDist = 0;
+  let pinchZoom = 1;
+  const spread = (): number => {
+    const [a, b] = [...touches.values()];
+    return a && b ? Math.hypot(a[0] - b[0], a[1] - b[1]) : 0;
+  };
+
   canvas.addEventListener('pointerdown', (e) => {
+    touches.set(e.pointerId, local(e));
+    if (touches.size === 2) {
+      pinchDist = spread() || 1;
+      pinchZoom = zoomTarget;
+      dragging = false;
+      moved = 99;
+      canvas.setPointerCapture(e.pointerId);
+      return;
+    }
     dragging = true;
     moved = 0;
     [lastX, lastY] = local(e);
@@ -587,11 +617,16 @@ export function initGlobe(host: HTMLElement): GlobeApi {
   });
   canvas.addEventListener('pointermove', (e) => {
     const [x, y] = local(e);
+    if (touches.has(e.pointerId)) touches.set(e.pointerId, [x, y]);
+    if (touches.size >= 2) {
+      setZoom(pinchZoom * (spread() / pinchDist));
+      return;
+    }
     if (dragging) {
       const dx = x - lastX;
       const dy = y - lastY;
       moved += Math.abs(dx) + Math.abs(dy);
-      const R = radius() * cam.scale;
+      const R = radius() * cam.scale * zoom;
       cam.lon = wrap(cam.lon - (dx / R) * DEG * 0.9);
       if (e.pointerType !== 'touch') cam.lat = clamp(cam.lat + (dy / R) * DEG * 0.9, -75, 75);
       spin = (-dx / R) * DEG * 0.9 / 16;
@@ -605,6 +640,7 @@ export function initGlobe(host: HTMLElement): GlobeApi {
     kick();
   });
   const release = (e: PointerEvent): void => {
+    touches.delete(e.pointerId);
     if (!dragging) return;
     dragging = false;
     userUntil = performance.now() + 4000;
@@ -616,6 +652,7 @@ export function initGlobe(host: HTMLElement): GlobeApi {
         glideTo = { lon: hit.ap.lon, lat: clamp(hit.ap.lat, -50, 50), scale: Math.max(cam.scale, 1.15) };
         glideUntil = performance.now() + 2600;
         userUntil = 0;
+        zoomTarget = Math.max(zoomTarget, 1.7);
       }
     }
     kick();
@@ -627,6 +664,30 @@ export function initGlobe(host: HTMLElement): GlobeApi {
     kick();
   });
   canvas.style.cursor = 'grab';
+  canvas.style.touchAction = 'pan-y';
+
+  // trackpad pinch (and ctrl + scroll) zooms the globe, not the page; plain scrolling still scrolls the page
+  canvas.addEventListener(
+    'wheel',
+    (e) => {
+      if (!e.ctrlKey && !e.metaKey) return;
+      e.preventDefault();
+      setZoom(zoomTarget * Math.exp(-e.deltaY * 0.01));
+    },
+    { passive: false },
+  );
+  // Safari reports a trackpad pinch as gesture events
+  let gestureStart = 1;
+  canvas.addEventListener('gesturestart', (e) => {
+    e.preventDefault();
+    gestureStart = zoomTarget;
+  });
+  canvas.addEventListener('gesturechange', (e) => {
+    e.preventDefault();
+    setZoom(gestureStart * ((e as unknown as { scale: number }).scale || 1));
+  });
+  host.querySelector('[data-zoom="in"]')?.addEventListener('click', () => setZoom(zoomTarget * 1.5));
+  host.querySelector('[data-zoom="out"]')?.addEventListener('click', () => setZoom(zoomTarget / 1.5));
 
   /* ---------- starting and stopping ---------- */
 
@@ -642,6 +703,7 @@ export function initGlobe(host: HTMLElement): GlobeApi {
   resize();
 
   function replay(): void {
+    zoomTarget = 1;
     routeStart = performance.now();
     userUntil = 0;
     glideTo = null;
@@ -656,7 +718,7 @@ export function initGlobe(host: HTMLElement): GlobeApi {
       if (!a || !b || a.code === b.code) {
         route = null;
         if (note) {
-          note.textContent = from && to ? `${from} to ${to} isn't on the map yet.` : 'Drag to spin the globe. Tap an airport.';
+          note.textContent = from && to ? `${from} to ${to} isn't on the map yet.` : 'Drag to spin. Pinch or + / − to zoom. Tap an airport.';
           note.hidden = false;
         }
         canvas.setAttribute('aria-label', 'Globe showing the AirAsia network');
@@ -664,6 +726,7 @@ export function initGlobe(host: HTMLElement): GlobeApi {
         return;
       }
       route = makeRoute(a, b);
+      zoomTarget = 1;
       routeStart = play ? performance.now() : performance.now() - (TURN_MS + route.flyMs + SETTLE_MS);
       userUntil = 0;
       glideTo = null;
