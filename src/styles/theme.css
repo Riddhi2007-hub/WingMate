@@ -66,3 +66,18 @@ html[data-theme="dark"] .theme-toggle.float{background:var(--surface);box-shadow
 .theme-toggle.float:hover{background:var(--light-slate)}
 @media (prefers-reduced-motion:reduce){.theme-toggle{transition:none}}
 html[data-theme="dark"] .ac-list{background:var(--surface);border-color:#62626e;box-shadow:0 12px 30px rgba(0,0,0,.55)}
+
+/* ===== Same look on every browser and device ===== */
+html{color-scheme:light;-webkit-text-size-adjust:100%;text-size-adjust:100%}
+html[data-theme="dark"]{color-scheme:dark}
+/* Safari/iOS draw their own rounded, shaded text fields unless told not to */
+input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=file]),textarea{-webkit-appearance:none;appearance:none}
+/* dropdowns get the same arrow everywhere (the native one differs on Mac, Windows and phones) */
+select{-webkit-appearance:none;appearance:none;padding-right:32px;background-image:linear-gradient(45deg,transparent 50%,var(--muted) 50%),linear-gradient(135deg,var(--muted) 50%,transparent 50%);background-position:calc(100% - 17px) 55%,calc(100% - 12px) 55%;background-size:5px 5px;background-repeat:no-repeat}
+/* iOS Safari zooms the whole page when a field smaller than 16px gets focus */
+@media (hover:none) and (pointer:coarse),(max-width:900px){
+  input:not([type=checkbox]):not([type=radio]):not([type=range]),select,textarea{font-size:16px!important}
+}
+/* the address bar on phones makes 100vh too tall */
+.page{min-height:100vh;min-height:100dvh}
+button,input,select,textarea{font-family:inherit}

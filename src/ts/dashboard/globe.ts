@@ -132,6 +132,20 @@ interface View {
   scale: number;
 }
 
+/** A rounded rectangle path (older Safari and Firefox do not have roundRect yet). */
+function rrect(g: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number): void {
+  if (typeof g.roundRect === 'function') {
+    g.roundRect(x, y, w, h, r);
+    return;
+  }
+  g.moveTo(x + r, y);
+  g.arcTo(x + w, y, x + w, y + h, r);
+  g.arcTo(x + w, y + h, x, y + h, r);
+  g.arcTo(x, y + h, x, y, r);
+  g.arcTo(x, y, x + w, y, r);
+  g.closePath();
+}
+
 const PLANE = typeof Path2D === 'undefined' ? null : new Path2D('M12 2l2 8 8 4v2l-8-2-1 6 3 2v2l-4-1-4 1v-2l3-2-1-6-8 2v-2l8-4z');
 
 export interface GlobeApi {
@@ -527,7 +541,7 @@ export function initGlobe(host: HTMLElement): GlobeApi {
       const ty = clamp(tip.y - 30, 4, h - 28);
       g.fillStyle = 'rgba(20,6,24,.82)';
       g.beginPath();
-      g.roundRect(tx, ty, tw, 22, 11);
+      rrect(g, tx, ty, tw, 22, 11);
       g.fill();
       g.fillStyle = '#fff';
       g.textBaseline = 'middle';
@@ -559,7 +573,7 @@ export function initGlobe(host: HTMLElement): GlobeApi {
       const ly = y - 11;
       g.fillStyle = `rgba(20,6,24,${0.78 * pop})`;
       g.beginPath();
-      g.roundRect(lx, ly, lw, 22, 11);
+      rrect(g, lx, ly, lw, 22, 11);
       g.fill();
       g.fillStyle = '#fff';
       g.textBaseline = 'middle';
