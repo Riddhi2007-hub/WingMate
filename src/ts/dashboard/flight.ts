@@ -7,7 +7,7 @@ import { nowMs, state } from './state';
 import { save, sync } from './sync';
 import { toast } from './ui';
 import { attachAirportPicker } from './airportPicker';
-import { resolveAirport } from './airports';
+import { estimateFlightMs, resolveAirport } from './airports';
 
 export { CHAT_WINDOW_HOURS };
 
@@ -128,8 +128,7 @@ export function openFlightDialog(mode: 'edit' | 'new' = 'edit'): void {
   input('#fDate').value = f ? localInput(f.departsAt).slice(0, 10) : prev ? localInput(prev.landsAt).slice(0, 10) : '';
   input('#fFrom').value = f?.from ?? prev?.to ?? '';
   input('#fTo').value = f?.to ?? '';
-  input('#fDep').value = f ? localInput(f.departsAt) : '';
-  input('#fArr').value = f ? localInput(f.landsAt) : '';
+  input('#fDep').value = f ? localInput(f.departsAt).slice(11) : '';
   $('#fmTitle').textContent = f ? 'Your flight' : state.flights.length ? 'Add a connecting flight' : 'Your flight';
   $('#fErr').textContent = '';
   $('#fRemove').hidden = !f;
@@ -163,13 +162,6 @@ export function initFlight(): void {
   $('#flightModal').addEventListener('click', (event) => {
     if ((event.target as HTMLElement).id === 'flightModal') closeFlightDialog();
   });
-  // choosing the date fills in the times if they are empty
-  input('#fDate').addEventListener('change', () => {
-    const date = input('#fDate').value;
-    if (date && !input('#fDep').value) input('#fDep').value = `${date}T09:00`;
-    if (date && !input('#fArr').value) input('#fArr').value = `${date}T12:00`;
-  });
-
   $('#fRemove').addEventListener('click', () => {
     void save(() => api('DELETE', `/api/flight${editKey ? `?key=${encodeURIComponent(editKey)}` : ''}`)).then(async () => {
       state.flightSel = null;
@@ -187,13 +179,19 @@ export function initFlight(): void {
       date: input('#fDate').value,
       from: resolveAirport(input('#fFrom').value),
       to: resolveAirport(input('#fTo').value),
-      departsAt: new Date(input('#fDep').value).getTime(),
-      landsAt: new Date(input('#fArr').value).getTime(),
+      departsAt: new Date(`${input('#fDate').value}T${input('#fDep').value}`).getTime(),
+      landsAt: 0,
     };
+    if (!body.date || !input('#fDep').value) {
+      $('#fErr').textContent = 'Enter the date and the departure time.';
+      return;
+    }
     if (!body.from || !body.to) {
       $('#fErr').textContent = 'Pick the airports from the list, or type the 3-letter code.';
       return;
     }
+    // we do not ask for the arrival time: it is estimated from the distance (the 48-hour chat window starts then)
+    body.landsAt = body.departsAt + estimateFlightMs(body.from, body.to);
     const newKey = flightKeyOf(body.number, body.date);
     void save(async () => {
       await api('PUT', '/api/flight', body);

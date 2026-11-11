@@ -282,14 +282,13 @@
 <div class="modal" id="flightModal" hidden>
   <form class="modal-box" id="flightForm" role="dialog" aria-modal="true" aria-labelledby="fmTitle">
     <h3 id="fmTitle">Your flight</h3>
-    <p class="muted small">Everyone who enters the same flight number and date appears on each other's list. Times are in your device's time zone.</p>
+    <p class="muted small">Everyone who enters the same flight number and date appears on each other's list. The time is in your device's time zone.</p>
     <div class="form-grid" style="margin-top:12px">
       <div><label class="lbl" for="fNumber">Flight number</label><input type="text" id="fNumber" placeholder="e.g. AK123" maxlength="8" required></div>
       <div><label class="lbl" for="fDate">Date</label><input type="date" id="fDate" required></div>
       <div><label class="lbl" for="fFrom">From (city or code)</label><input type="text" id="fFrom" placeholder="e.g. Kuala Lumpur or KUL" maxlength="40" required></div>
       <div><label class="lbl" for="fTo">To (city or code)</label><input type="text" id="fTo" placeholder="e.g. Hong Kong or HKG" maxlength="40" required></div>
-      <div><label class="lbl" for="fDep">Departure</label><input type="datetime-local" id="fDep" required></div>
-      <div><label class="lbl" for="fArr">Arrival</label><input type="datetime-local" id="fArr" required></div>
+      <div><label class="lbl" for="fDep">Departure time</label><input type="time" id="fDep" required></div>
     </div>
     <p class="small" id="fErr" style="color:#b00020;margin-top:10px" role="alert"></p>
     <div class="modal-actions"><button class="btn ghost" id="fCancel" type="button">Cancel</button><button class="btn ghost" id="fRemove" type="button" hidden>Remove flight</button><button class="btn" type="submit">Save flight</button></div>

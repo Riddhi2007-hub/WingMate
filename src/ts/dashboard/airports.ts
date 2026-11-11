@@ -80,6 +80,18 @@ const BY_CODE = new Map(AIRPORTS.map((a) => [a.code, a]));
 
 export const airportByCode = (code: string): Airport | undefined => BY_CODE.get(code.trim().toUpperCase());
 
+/** A rough flight time from the distance between two airports (about 780 km/h plus 30 minutes), or 3 hours when we do not know them. */
+export function estimateFlightMs(fromCode: string, toCode: string): number {
+  const a = airportByCode(fromCode);
+  const b = airportByCode(toCode);
+  if (!a || !b) return 3 * 3_600_000;
+  const rad = Math.PI / 180;
+  const h = Math.sin(((b.lat - a.lat) * rad) / 2) ** 2 + Math.cos(a.lat * rad) * Math.cos(b.lat * rad) * Math.sin(((b.lon - a.lon) * rad) / 2) ** 2;
+  const km = 2 * 6371 * Math.asin(Math.min(1, Math.sqrt(h)));
+  const hours = Math.min(20, Math.max(0.75, km / 780 + 0.5));
+  return Math.round(hours * 3_600_000);
+}
+
 /** Airports matching what someone typed: by code, city or country, best matches first. */
 export function searchAirports(text: string, limit = 6): Airport[] {
   const q = text.trim().toLowerCase();

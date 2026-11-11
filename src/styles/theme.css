@@ -16,7 +16,7 @@ html[data-theme="dark"] ::placeholder{color:var(--placeholder)}
 
 /* surfaces */
 html[data-theme="dark"] :where(.card,.stat,.mate,.trip,.conv,.opt span,.chip,.tabbtn,.modal-box,.composer,.keys button,.panel,.ring span){background-color:var(--surface)}
-html[data-theme="dark"] :where(input[type=text],input[type=email],input[type=search],input[type=tel],input[type=password],input[type=date],input[type=datetime-local],select,textarea){background-color:var(--surface);color:var(--ink);border-color:#62626e}
+html[data-theme="dark"] :where(input[type=text],input[type=email],input[type=search],input[type=tel],input[type=password],input[type=date],input[type=datetime-local],input[type=time],select,textarea){background-color:var(--surface);color:var(--ink);border-color:#62626e}
 html[data-theme="dark"] input[readonly]{background-color:var(--light-slate)}
 html[data-theme="dark"] .filter-grid select.on{background-color:var(--tint)}
 html[data-theme="dark"] .btn.ghost{background:var(--surface);color:var(--brand-text)}

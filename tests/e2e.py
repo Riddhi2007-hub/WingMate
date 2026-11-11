@@ -38,7 +38,7 @@ def add_flight(page):
     page.click('#flightBtn')
     page.fill('#fNumber','AK 123'); page.fill('#fDate',dep.strftime('%Y-%m-%d'))
     page.fill('#fFrom','KUL'); page.fill('#fTo','HKG')
-    page.fill('#fDep',fmt(dep)); page.fill('#fArr',fmt(arr))
+    page.fill('#fDep',dep.strftime('%H:%M'))
     page.click('#flightForm button[type=submit]')
     page.wait_for_selector('#flightModal',state='hidden')
 try:
