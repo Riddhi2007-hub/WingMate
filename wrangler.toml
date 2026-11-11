@@ -28,3 +28,14 @@ crons = ["0 * * * *"]
 # SMTP_FROM = "WingMate <you@gmail.com>"
 # PBKDF2_ITERATIONS = "10000"
 # Keep SMTP_PASS as a *secret* (dashboard, or: npx wrangler secret put SMTP_PASS), never in this file.
+
+# Keep logs on so email/sign-in problems can be diagnosed in the Cloudflare dashboard.
+[observability]
+enabled = true
+head_sampling_rate = 1
+
+[observability.logs]
+enabled = true
+head_sampling_rate = 1
+invocation_logs = true
+persist = true
