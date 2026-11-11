@@ -129,7 +129,7 @@
   <div class="page-head">
     <div>
       <h1>Messages</h1>
-      <p class="lead">Chat before your flight and on board. Chats close 48 hours after you land.</p>
+      <p class="lead">Chat from the moment you book, on board and after landing. Chats close 48 hours after you land. Start a group for a family trip or friends travelling together.</p>
     </div>
   </div>
   <div class="card msgs" id="msgBox">
@@ -316,6 +316,17 @@
     <div class="pl-list" id="plList"></div>
     <div class="modal-actions"><button class="btn ghost" id="plClose" type="button">Close</button><button class="btn" id="plSendPicks" type="button" disabled>Tick places to send</button></div>
   </div>
+</div>
+<div class="modal" id="groupModal" hidden>
+  <form class="modal-box" id="groupForm" role="dialog" aria-modal="true" aria-labelledby="gmTitle">
+    <h3 id="gmTitle">New group chat</h3>
+    <p class="muted small" id="gmSub"></p>
+    <div id="gmNameRow" style="margin-top:12px"><label class="lbl" for="gmName">Group name</label><input type="text" id="gmName" maxlength="40" placeholder="e.g. Bali crew"></div>
+    <p class="lbl" style="margin-top:14px">Invite travel mates</p>
+    <div class="pl-stops" id="gmList"></div>
+    <p class="small" id="gmErr" style="color:#b00020;margin-top:10px" role="alert"></p>
+    <div class="modal-actions"><button class="btn ghost" id="gmCancel" type="button">Cancel</button><button class="btn" type="submit">Send invites</button></div>
+  </form>
 </div>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 

@@ -39,6 +39,10 @@ export async function runJobs(db: Db, s: Settings): Promise<{ flyersCleared: num
     { sql: 'DELETE FROM rate_limits WHERE reset_at <= ?', params: [now] },
     // games are short-lived: anything untouched for two days goes
     { sql: 'DELETE FROM games WHERE updated_at < ?', params: [now - 2 * DAY] },
+    // group chats nobody has written in for 30 days are removed with their messages
+    { sql: 'DELETE FROM group_messages WHERE group_id IN (SELECT id FROM groups WHERE updated_at < ?)', params: [now - 30 * DAY] },
+    { sql: 'DELETE FROM group_members WHERE group_id IN (SELECT id FROM groups WHERE updated_at < ?)', params: [now - 30 * DAY] },
+    { sql: 'DELETE FROM groups WHERE updated_at < ?', params: [now - 30 * DAY] },
     // sign-ups that never confirmed their email within a week are removed, so the address can be used again
     { sql: 'DELETE FROM users WHERE email_verified = 0 AND created_at < ?', params: [now - 7 * DAY] },
   ]);

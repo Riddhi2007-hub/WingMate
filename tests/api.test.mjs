@@ -271,6 +271,35 @@ try {
     ok('a quick correct guess scores points for both', r.json.game.scribble.scores.me > 0 && r.json.game.scribble.scores.them === 50);
     ok('rounds have a clock', typeof r.json.game.scribble.endsAt === 'number' && r.json.game.scribble.limit === 80000);
   }
+  // group chats: invite connections, they must accept, then everyone in the group can talk
+  {
+    const p1 = new Client(), p2 = new Client(), p3 = new Client(), p4 = new Client();
+    await signup(p1, 'Mara'); await signup(p2, 'Nils'); await signup(p3, 'Omar'); await signup(p4, 'Pia');
+    const d = soon(140); const leg = { number: 'AK 888', date: dateStr(d), from: 'HKG', to: 'DPS', departsAt: d, landsAt: d + 5 * 3600e3 };
+    for (const c of [p1, p2, p3, p4]) await c.call('PUT', '/api/flight', leg);
+    const idOf = async (viewer, name) => (await viewer.call('GET', '/api/sync')).json.people.find(p => p.name === name + ' T.').id;
+    const nils = await idOf(p1, 'Nils'), omar = await idOf(p1, 'Omar'), pia = await idOf(p1, 'Pia');
+    for (const [c, other, me] of [[p2, 'Mara', 'Nils'], [p3, 'Mara', 'Omar']]) {
+      await p1.call('POST', '/api/connections', { to: await idOf(p1, me) });
+      await c.call('POST', '/api/connections/respond', { from: await idOf(c, other), accept: true });
+    }
+    r = await p1.call('POST', '/api/groups', { name: 'Bali crew', invite: [pia] }); ok('cannot add someone you are not connected with', r.status === 400);
+    r = await p1.call('POST', '/api/groups', { name: '', invite: [nils] }); ok('a group needs a name', r.status === 400);
+    r = await p1.call('POST', '/api/groups', { name: 'Bali crew', invite: [nils, omar] }); ok('group created', r.status === 200);
+    const gid = r.json.id;
+    r = await p2.call('GET', '/api/sync'); const inv = r.json.groups.find(g => g.id === gid);
+    ok('invitee sees the invitation and who invited them', inv && inv.myStatus === 'invited' && inv.invitedBy === 'Mara T.' && inv.members.length === 3);
+    r = await p2.call('POST', '/api/groups/messages', { id: gid, text: 'hi' }); ok('cannot write before accepting', r.status === 403);
+    r = await p4.call('POST', '/api/groups/messages', { id: gid, text: 'hi' }); ok('an outsider cannot write', r.status === 404);
+    await p2.call('POST', '/api/groups/respond', { id: gid, accept: true });
+    await p3.call('POST', '/api/groups/respond', { id: gid, accept: false });
+    r = await p1.call('POST', '/api/groups/messages', { id: gid, text: 'Welcome to the Bali crew!' }); ok('member writes', r.status === 201);
+    r = await p2.call('GET', '/api/sync'); const gm = r.json.groupMessages.filter(m => m.group === gid);
+    ok('members get the group messages with the sender name', gm.length === 1 && gm[0].by === 'Mara T.' && gm[0].from === 'them');
+    r = await p3.call('GET', '/api/sync'); ok('declining removes the invitation', !r.json.groups.some(g => g.id === gid) && !r.json.groupMessages.length);
+    r = await p2.call('GET', '/api/sync?gafter=' + gm[0].id); ok('group messages page by cursor', r.json.groupMessages.length === 0);
+    r = await p2.call('POST', '/api/groups/leave', { id: gid }); r = await p2.call('GET', '/api/sync'); ok('leaving a group', !r.json.groups.some(g => g.id === gid));
+  }
 } finally {
   try { await stop(); } catch {}
   rmSync(dir, { recursive: true, force: true });

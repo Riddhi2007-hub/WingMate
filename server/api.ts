@@ -11,6 +11,7 @@ import type { ConnRow, FlightRow, UserRow } from './rows';
 import type { Db, Runtime } from './runtime';
 import { stmt } from './runtime';
 import * as v from './validate';
+import { MAX_MEMBERS, groupName, groupsFor, inviteAll, invitable, membership } from './groups';
 import { KINDS, applyMove, gameDto, hangmanWord, initialState, startClock, type GameRow, type Kind } from './games';
 
 type Conn = 'requested' | 'incoming' | 'connected';
@@ -181,7 +182,7 @@ async function messagesFor(db: Db, me: number, after: number) {
   }));
 }
 
-async function syncPayload(db: Db, me: UserRow, after: number) {
+async function syncPayload(db: Db, me: UserRow, after: number, gafter = 0) {
   const now = Date.now();
   const [messages, flights, people] = [await messagesFor(db, me.id, after), await myFlights(db, me.id), await peopleFor(db, me, now)];
   // the flight to show first: the next one that has not landed yet, or the last one
@@ -193,6 +194,7 @@ async function syncPayload(db: Db, me: UserRow, after: number) {
     flights: flights.map((f) => flightDto(f)),
     people,
     games: await gamesFor(db, me.id, now),
+    ...(await groupsFor(db, me.id, gafter)),
     messages,
     cursor: messages.length ? Math.max(...messages.map((m) => m.id)) : after,
   };
@@ -372,7 +374,8 @@ const routes: Record<string, Handler> = {
   async 'GET /api/sync'(ctx) {
     const me = requireUser(ctx);
     const after = Math.max(0, Math.floor(Number(ctx.query.get('after') ?? 0)) || 0);
-    return json(200, await syncPayload(ctx.db, me, after));
+    const gafter = Math.max(0, Math.floor(Number(ctx.query.get('gafter') ?? 0)) || 0);
+    return json(200, await syncPayload(ctx.db, me, after, gafter));
   },
 
   async 'PUT /api/prefs'(ctx) {
@@ -537,6 +540,83 @@ const routes: Record<string, Handler> = {
     const reason = v.str(b.reason, 'reason', 3, 500);
     await db.run('INSERT INTO reports (reporter_id, reported_id, reason, created_at) VALUES (?, ?, ?, ?)', me.id, target.id, reason, Date.now());
     return ok();
+  },
+
+  async 'POST /api/groups'(ctx) {
+    const me = requireUser(ctx);
+    const { db } = ctx;
+    await rateLimit(db, `group:${me.id}`, 20, HOUR);
+    const b = await readJson(ctx.request);
+    const name = groupName(b.name);
+    const asked = Array.isArray(b.invite) ? b.invite.map(Number).filter((n) => Number.isInteger(n) && n !== me.id) : [];
+    const ids = await invitable(db, me.id, asked);
+    if (!ids.length) throw bad('Pick at least one travel mate you are connected with.', 'invite');
+    if (ids.length + 1 > MAX_MEMBERS) throw bad(`A group can have up to ${MAX_MEMBERS} people.`, 'invite');
+    const now = Date.now();
+    const id = (await db.run('INSERT INTO groups (name, owner_id, created_at, updated_at) VALUES (?, ?, ?, ?)', name, me.id, now, now)).id;
+    await db.run("INSERT INTO group_members (group_id, user_id, status, invited_by, created_at) VALUES (?, ?, 'joined', NULL, ?)", id, me.id, now);
+    await inviteAll(db, id, me.id, ids);
+    return ok({ id: String(id) });
+  },
+
+  async 'POST /api/groups/invite'(ctx) {
+    const me = requireUser(ctx);
+    const { db } = ctx;
+    await rateLimit(db, `group:${me.id}`, 20, HOUR);
+    const b = await readJson(ctx.request);
+    const { status } = await membership(db, Number(b.id), me.id);
+    if (status !== 'joined') throw new HttpError(403, 'not_member', 'Join the group first.');
+    const asked = Array.isArray(b.invite) ? b.invite.map(Number).filter((n) => Number.isInteger(n) && n !== me.id) : [];
+    const ids = await invitable(db, me.id, asked);
+    if (!ids.length) throw bad('You can only invite people you are connected with.', 'invite');
+    const added = await inviteAll(db, Number(b.id), me.id, ids);
+    return ok({ added });
+  },
+
+  async 'POST /api/groups/respond'(ctx) {
+    const me = requireUser(ctx);
+    const { db } = ctx;
+    const b = await readJson(ctx.request);
+    const { group, status } = await membership(db, Number(b.id), me.id);
+    if (status !== 'invited') throw new HttpError(409, 'not_invited', 'You are already in this group.');
+    if (b.accept === true) {
+      await db.batch([
+        { sql: "UPDATE group_members SET status = 'joined' WHERE group_id = ? AND user_id = ?", params: [group.id, me.id] },
+        { sql: 'UPDATE groups SET updated_at = ? WHERE id = ?', params: [Date.now(), group.id] },
+      ]);
+    } else {
+      await db.run('DELETE FROM group_members WHERE group_id = ? AND user_id = ?', group.id, me.id);
+    }
+    return ok();
+  },
+
+  async 'POST /api/groups/leave'(ctx) {
+    const me = requireUser(ctx);
+    const { db } = ctx;
+    const b = await readJson(ctx.request);
+    const { group } = await membership(db, Number(b.id), me.id);
+    await db.run('DELETE FROM group_members WHERE group_id = ? AND user_id = ?', group.id, me.id);
+    const left = await db.get<{ n: number }>("SELECT COUNT(*) AS n FROM group_members WHERE group_id = ? AND status = 'joined'", group.id);
+    if (!left?.n) await db.batch([
+      { sql: 'DELETE FROM group_messages WHERE group_id = ?', params: [group.id] },
+      { sql: 'DELETE FROM group_members WHERE group_id = ?', params: [group.id] },
+      { sql: 'DELETE FROM groups WHERE id = ?', params: [group.id] },
+    ]);
+    return ok();
+  },
+
+  async 'POST /api/groups/messages'(ctx) {
+    const me = requireUser(ctx);
+    const { db } = ctx;
+    await rateLimit(db, `msg:${me.id}`, 40, 60_000);
+    const b = await readJson(ctx.request);
+    const { group, status } = await membership(db, Number(b.id), me.id);
+    if (status !== 'joined') throw new HttpError(403, 'not_member', 'Join the group to send messages.');
+    const text = v.str(b.text, 'text', 1, 1000);
+    const now = Date.now();
+    const id = (await db.run('INSERT INTO group_messages (group_id, from_id, text, created_at) VALUES (?, ?, ?, ?)', group.id, me.id, text, now)).id;
+    await db.run('UPDATE groups SET updated_at = ? WHERE id = ?', now, group.id);
+    return json(201, { ok: true, id });
   },
 
   async 'GET /api/games'(ctx) {

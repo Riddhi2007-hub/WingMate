@@ -57,6 +57,30 @@ export const SCHEMA: string[] = [
 )`,
   `CREATE INDEX IF NOT EXISTS games_from ON games(from_id)`,
   `CREATE INDEX IF NOT EXISTS games_to ON games(to_id)`,
+  `CREATE TABLE IF NOT EXISTS groups (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL,
+  owner_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+)`,
+  `CREATE TABLE IF NOT EXISTS group_members (
+  group_id INTEGER NOT NULL REFERENCES groups(id) ON DELETE CASCADE,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  status TEXT NOT NULL CHECK (status IN ('invited','joined')),
+  invited_by INTEGER,
+  created_at INTEGER NOT NULL,
+  PRIMARY KEY (group_id, user_id)
+)`,
+  `CREATE INDEX IF NOT EXISTS gm_user ON group_members(user_id)`,
+  `CREATE TABLE IF NOT EXISTS group_messages (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  group_id INTEGER NOT NULL REFERENCES groups(id) ON DELETE CASCADE,
+  from_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  text TEXT NOT NULL,
+  created_at INTEGER NOT NULL
+)`,
+  `CREATE INDEX IF NOT EXISTS gmsg_group ON group_messages(group_id, id)`,
   `CREATE TABLE IF NOT EXISTS connections (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   from_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,

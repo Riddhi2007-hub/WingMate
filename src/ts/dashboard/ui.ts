@@ -113,7 +113,7 @@ export function connectedPeople(): Person[] {
 
 /** Red badge on the Messages tab. */
 export function updateNavDot(): void {
-  const incoming = Object.values(state.conn).filter((c) => c === 'incoming').length;
+  const incoming = Object.values(state.conn).filter((c) => c === 'incoming').length + state.groups.filter((g) => g.myStatus === 'invited').length;
   const total = incoming + Object.values(state.unread).reduce<number>((sum, n) => sum + (n ?? 0), 0);
   const dot = $('#navDot');
   dot.hidden = total === 0;

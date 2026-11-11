@@ -6,7 +6,7 @@
 import { clone } from '../shared/dom';
 import type { ChatWindow } from '../shared/stage';
 import type { Interest, PrefKey, ViewName } from './options';
-import type { ChatMessage, Connection, FlyerInfo, Filters, Flight, Prefs, User } from './types';
+import type { ChatMessage, Connection, FlyerInfo, Filters, Flight, GroupDto, GroupMessage, Prefs, User } from './types';
 
 export const DEFAULT_PREFS: Prefs = {
   type: 'Leisure',
@@ -30,6 +30,9 @@ export interface AppState {
   /** Whether each connected person's chat is still open. */
   windows: Record<string, ChatWindow | undefined>;
   chats: Record<string, ChatMessage[] | undefined>;
+  /** Group chats (by group id) and their messages. */
+  groups: GroupDto[];
+  groupChats: Record<string, GroupMessage[] | undefined>;
   /** Unread message count by person id. */
   unread: Record<string, number | undefined>;
   /** Which preferences count towards the match percentage. */
@@ -61,6 +64,8 @@ export const state: AppState = {
   conn: {},
   windows: {},
   chats: {},
+  groups: [],
+  groupChats: {},
   unread: {},
   criteria: { type: true, why: true, pers: true, interests: true, seat: true },
   user: { first: '', last: '', email: '', bio: '' },

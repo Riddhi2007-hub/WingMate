@@ -23,7 +23,7 @@ export function closesIn(window: ChatWindow | undefined): string | null {
 
 export function stageLabel(stage: Stage): string {
   const labels: Record<Stage, string> = {
-    pre: 'Pre-flight chat',
+    pre: 'Chat open from booking',
     in: 'In-flight chat',
     landed: 'Chat open after landing',
     closed: 'Chat closed',

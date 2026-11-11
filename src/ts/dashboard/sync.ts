@@ -8,7 +8,7 @@ import { ApiError, api } from '../shared/api';
 import { setPeople } from './data';
 import type { PrefKey } from './options';
 import { state } from './state';
-import type { ChatMessage, Flight, Person, Prefs } from './types';
+import type { ChatMessage, Flight, GroupDto, Person, Prefs } from './types';
 import { setGames, type GameDto } from './gamestate';
 
 interface MessageDto {
@@ -38,11 +38,15 @@ interface SyncDto {
   flights: Flight[];
   people: Person[];
   games?: GameDto[];
+  groups?: GroupDto[];
+  groupMessages?: Array<{ id: number; group: string; from: 'me' | 'them'; by: string; text: string; t: number }>;
+  groupCursor?: number;
   messages: MessageDto[];
   cursor: number;
 }
 
 let cursor = 0;
+let gcursor = 0;
 let loaded = false;
 /** While the person's own change is on its way to the server, an older server answer must not undo it. */
 let pending = 0;
@@ -73,7 +77,7 @@ function toLogin(): void {
 }
 
 const snapshot = (dto: SyncDto): string =>
-  JSON.stringify({ me: dto.me, flight: dto.flight, flights: dto.flights, people: dto.people });
+  JSON.stringify({ me: dto.me, flight: dto.flight, flights: dto.flights, people: dto.people, groups: dto.groups });
 
 let lastSnapshot = '';
 
@@ -98,6 +102,7 @@ function apply(dto: SyncDto): boolean {
     state.flight = dto.flights.find((f) => f.key === state.flightSel) ?? dto.flight;
     state.flightSel = state.flight?.key ?? null;
     setPeople(dto.people);
+    state.groups = dto.groups ?? [];
     state.conn = {};
     state.windows = {};
     for (const p of dto.people) {
@@ -121,6 +126,20 @@ function apply(dto: SyncDto): boolean {
       if (loaded) onNewMessage(m.with);
     }
   }
+  // group messages work the same way, with their own cursor
+  for (const m of dto.groupMessages ?? []) {
+    const thread = state.groupChats[m.group] ?? [];
+    if (thread.some((x) => x.id === m.id)) continue;
+    thread.push({ id: m.id, from: m.from, by: m.by, text: m.text, t: m.t });
+    state.groupChats[m.group] = thread;
+    changed = true;
+    const key = `g:${m.group}`;
+    if (m.from === 'them' && loaded && !(state.currentView === 'messages' && state.activeChat === key)) {
+      state.unread[key] = (state.unread[key] ?? 0) + 1;
+      onNewMessage(key);
+    }
+  }
+  gcursor = Math.max(gcursor, dto.groupCursor ?? 0);
   cursor = Math.max(cursor, dto.cursor);
   return changed;
 }
@@ -128,7 +147,7 @@ function apply(dto: SyncDto): boolean {
 /** Fetches the latest from the server and re-renders when something changed. Safe to call often. */
 export function sync(): Promise<boolean> {
   if (inFlight) return inFlight;
-  inFlight = api<SyncDto>('GET', `/api/sync?after=${cursor}`)
+  inFlight = api<SyncDto>('GET', `/api/sync?after=${cursor}&gafter=${gcursor}`)
     .then((dto) => {
       const changed = apply(dto);
       const wasLoaded = loaded;

@@ -25,6 +25,24 @@ export interface Person extends Prefs {
   flights: Flight[];
 }
 
+/** A group chat you are in, or have been invited to. */
+export interface GroupDto {
+  id: string;
+  name: string;
+  myStatus: 'invited' | 'joined';
+  invitedBy: string | null;
+  updatedAt: number;
+  members: Array<{ id: string; name: string; me: boolean; status: 'invited' | 'joined'; av: number }>;
+}
+
+export interface GroupMessage {
+  id: number;
+  from: 'me' | 'them';
+  by: string;
+  text: string;
+  t: number;
+}
+
 export interface Trip {
   name: string;
   days: number;

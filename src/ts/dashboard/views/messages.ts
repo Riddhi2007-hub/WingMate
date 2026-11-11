@@ -6,6 +6,7 @@ import { stageOf } from '../../shared/stage';
 import { nowMs, state } from '../state';
 import { save, sync } from '../sync';
 import { commonStripHTML, destinationsFor, planCardHTML, planPreview } from './plan';
+import { groupInvitesHTML, groupListHTML, groupOf, renderGroupThread, sendGroupMessage } from './groups';
 import { avatar, connectedPeople, fmtTime, flightTags, toast, updateNavDot } from '../ui';
 
 /** Clears the unread count for a chat and tells the server. */
@@ -13,6 +14,7 @@ export function markRead(id: string): void {
   if (!state.unread[id]) return;
   state.unread[id] = 0;
   updateNavDot();
+  if (id.startsWith('g:')) return; // group messages are counted on this device only
   void api('POST', '/api/read', { with: id }).catch(() => undefined);
 }
 
@@ -43,7 +45,8 @@ export function renderMessages(): void {
   const draft = typing ? $<HTMLInputElement>('#msgInput').value : '';
 
   const people = connectedPeople();
-  if (!people.some((p) => p.id === state.activeChat)) state.activeChat = people[0]?.id ?? null;
+  const groupKeys = state.groups.filter((g) => g.myStatus === 'joined').map((g) => `g:${g.id}`);
+  if (!people.some((p) => p.id === state.activeChat) && !groupKeys.includes(state.activeChat ?? '')) state.activeChat = groupKeys[0] ?? people[0]?.id ?? null;
 
   const list = people
     .map((p) => {
@@ -53,10 +56,19 @@ export function renderMessages(): void {
       return `<button class="conv ${p.id === state.activeChat ? 'active' : ''}" data-chat="${esc(p.id)}">${avatar(p)}<span class="nm"><b>${esc(p.name)}</b><span>${last ? esc(planPreview(last.text) ?? last.text) : 'Say hello'}</span>${p.flights.length ? `<small class="cflight">&#9992; ${esc(p.flights.map((f) => f.number).join(', '))}</small>` : ''}</span>${unread ? `<span class="ub">${unread}</span>` : ''}</button>`;
     })
     .join('');
-  const requests = requestsHTML();
+  const groupInvites = groupInvitesHTML();
+  const requests = requestsHTML() + (groupInvites && !requestsHTML() ? `<div class="conv-head small muted" style="padding:8px 12px">Requests</div>` : '') + groupInvites;
+  const top = people.length ? `<div class="conv-top"><button class="btn sm" type="button" data-group-new>+ New group</button></div>` : '';
+  const groups = groupListHTML();
   $('#convs').innerHTML =
-    list + requests ||
+    top + groups + list + requests ||
     `<div class="empty"><h3>No chats yet</h3><p>Connect with someone to start chatting.</p></div>`;
+
+  const group = groupOf(state.activeChat);
+  if (group) {
+    renderGroupThread(group);
+    return;
+  }
 
   const thread = $('#thread');
   const person = findPerson(state.activeChat);
@@ -73,7 +85,7 @@ export function renderMessages(): void {
   const stage = chatFlight ? stageOf(chatFlight, nowMs()) : 'pre';
   let banner: string;
   if (closed) banner = `<div class="banner closed">This chat closed 48 hours after landing. You can no longer send messages.</div>`;
-  else if (stage === 'pre') banner = `<div class="banner">Pre-flight chat. You can keep chatting once you are on board.</div>`;
+  else if (stage === 'pre') banner = `<div class="banner">Chat is open from booking. You can keep chatting on board.</div>`;
   else if (stage === 'in') banner = `<div class="banner">In-flight chat.</div>`;
   else banner = `<div class="banner warn">You have landed. This chat closes in ${closesIn(window) ?? '0h 0m'} (48 hours after landing).</div>`;
 
@@ -136,6 +148,15 @@ export function initMessages(): void {
     const id = state.activeChat;
     if (!text || !id) return;
     field.value = '';
+    if (id.startsWith('g:')) {
+      void sendGroupMessage(id.slice(2), text)
+        .then(() => renderMessages())
+        .catch((error: unknown) => {
+          field.value = text;
+          toast(error instanceof ApiError ? error.message : 'Message not sent. Try again.');
+        });
+      return;
+    }
     void save(() => api('POST', '/api/messages', { to: id, text }))
       .then(() => sync().then(() => renderMessages()))
       .catch((error: unknown) => {
