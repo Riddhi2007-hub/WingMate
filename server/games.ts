@@ -206,6 +206,8 @@ export function gameDto(row: GameRow, me: number) {
   const them = String(other(row, me));
   if (row.kind === 'hangman') {
     const s = JSON.parse(row.state) as HangState;
+    s.scores ??= {};
+    s.startedAt ??= row.updated_at;
     if (row.status === 'active') settle(row, s, now);
     const mine = s.setter === me;
     const over = s.result !== '' || row.status === 'done';
@@ -227,6 +229,8 @@ export function gameDto(row: GameRow, me: number) {
     };
   }
   const s = JSON.parse(row.state) as ScribState;
+  s.scores ??= {};
+  s.startedAt ??= row.updated_at;
   if (row.status === 'active') settle(row, s, now);
   const mine = s.drawer === me;
   const over = s.result !== '' || row.status === 'done';

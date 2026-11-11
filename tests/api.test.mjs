@@ -268,6 +268,8 @@ try {
     r = await g1.call('POST', '/api/games/move', { id: sid2, move: { stroke: { c: '#000000', s: 4, p: [1, 1, 2, 2] } } }); ok('the guesser cannot draw', r.status === 400);
     r = await g1.call('POST', '/api/games/move', { id: sid2, move: { guess: 'banana' } }); ok('a wrong guess is recorded', r.json.game.scribble.guesses.length === 1 && !r.json.game.scribble.guesses[0].ok);
     r = await g1.call('POST', '/api/games/move', { id: sid2, move: { guess: word.toUpperCase() + '!' } }); ok('the right guess wins', r.json.game.scribble.result === 'won' && r.json.game.scribble.word === word);
+    ok('a quick correct guess scores points for both', r.json.game.scribble.scores.me > 0 && r.json.game.scribble.scores.them === 50);
+    ok('rounds have a clock', typeof r.json.game.scribble.endsAt === 'number' && r.json.game.scribble.limit === 80000);
   }
 } finally {
   try { await stop(); } catch {}
