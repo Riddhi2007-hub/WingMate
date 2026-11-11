@@ -142,7 +142,6 @@ export interface GlobeApi {
 export function initGlobe(host: HTMLElement): GlobeApi {
   const canvas = host.querySelector<HTMLCanvasElement>('canvas');
   const ctx = canvas?.getContext('2d') ?? null;
-  const replayBtn = host.querySelector<HTMLButtonElement>('[data-globe-replay]');
   const note = host.querySelector<HTMLElement>('[data-globe-note]');
   if (!canvas || !ctx) return { setRoute() {}, replay() {} };
   const c2d: CanvasRenderingContext2D = ctx;
@@ -649,7 +648,6 @@ export function initGlobe(host: HTMLElement): GlobeApi {
     pinned = null;
     kick();
   }
-  replayBtn?.addEventListener('click', replay);
 
   return {
     setRoute(from, to, play = true) {
@@ -661,7 +659,6 @@ export function initGlobe(host: HTMLElement): GlobeApi {
           note.textContent = from && to ? `${from} to ${to} isn't on the map yet.` : 'Drag to spin the globe. Tap an airport.';
           note.hidden = false;
         }
-        if (replayBtn) replayBtn.hidden = true;
         canvas.setAttribute('aria-label', 'Globe showing the AirAsia network');
         kick();
         return;
@@ -672,7 +669,6 @@ export function initGlobe(host: HTMLElement): GlobeApi {
       glideTo = null;
       pinned = null;
       if (note) note.hidden = true;
-      if (replayBtn) replayBtn.hidden = false;
       canvas.setAttribute('aria-label', `Globe showing the route from ${a.city} to ${b.city}`);
       kick();
     },
