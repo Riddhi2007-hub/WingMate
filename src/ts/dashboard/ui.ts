@@ -2,7 +2,7 @@
 import { $, esc } from '../shared/dom';
 import { getPeople } from './data';
 import { state } from './state';
-import type { Person } from './types';
+import type { Flight, Person } from './types';
 
 /* ---------- formatting ---------- */
 
@@ -11,6 +11,16 @@ export const fmtTime = (ms: number): string =>
 
 export const fmtDate = (value: string | number | Date): string =>
   new Date(value).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+
+/** "AK 123 · KUL → HKG · 13 Nov" */
+export const flightLabel = (f: Flight): string =>
+  `${f.number} · ${f.from} → ${f.to} · ${new Date(f.departsAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}`;
+
+/** Small tags showing which flight(s) you share with someone. */
+export const flightTags = (p: Person): string =>
+  p.flights.length
+    ? `<div class="ftags">${p.flights.map((f) => `<span class="ftag" title="${esc(flightLabel(f))}">&#9992; ${esc(f.number)} <small>${esc(f.from)} → ${esc(f.to)} · ${new Date(f.departsAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</small></span>`).join('')}</div>`
+    : '';
 
 export const initials = (name: string): string =>
   name

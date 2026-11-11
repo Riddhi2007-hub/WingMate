@@ -42,6 +42,10 @@ export interface AppState {
   lastFlight: number;
   /** The flight you are on, or null until you add one. */
   flight: Flight | null;
+  /** All your flights, earliest first (a trip with a layover has more than one). */
+  flights: Flight[];
+  /** Which of your flights the ticket card is showing. */
+  flightSel: string | null;
   /** Server time minus this device's clock (ms), so countdowns agree with the server. */
   clockOffset: number;
   /** Interest chips selected on the Find page. */
@@ -65,6 +69,8 @@ export const state: AppState = {
   saveData: true,
   lastFlight: Date.now(),
   flight: null,
+  flights: [],
+  flightSel: null,
   clockOffset: 0,
   interestFilter: [],
   filters: emptyFilters(),

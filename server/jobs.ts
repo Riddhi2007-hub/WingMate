@@ -9,11 +9,9 @@ export async function runJobs(db: Db, s: Settings): Promise<{ flyersCleared: num
 
   // 1. Remember when each person last flew: the landing time of their flight, once it has passed.
   await db.run(
-    `UPDATE users SET last_flight_at = (SELECT f.lands_at FROM flights f WHERE f.key = users.flight_key)
-     WHERE flight_key IS NOT NULL
-       AND (SELECT f.lands_at FROM flights f WHERE f.key = users.flight_key) <= ?
-       AND (SELECT f.lands_at FROM flights f WHERE f.key = users.flight_key) > last_flight_at`,
-    now,
+    `UPDATE users SET last_flight_at = (SELECT MAX(f.lands_at) FROM user_flights uf JOIN flights f ON f.key = uf.flight_key WHERE uf.user_id = users.id AND f.lands_at <= ?)
+     WHERE (SELECT MAX(f.lands_at) FROM user_flights uf JOIN flights f ON f.key = uf.flight_key WHERE uf.user_id = users.id AND f.lands_at <= ?) > last_flight_at`,
+    now, now,
   );
 
   // 2. No flight for 3 months: delete saved frequent flyer details.

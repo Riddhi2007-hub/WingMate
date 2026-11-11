@@ -197,6 +197,34 @@ try {
   ok('3-month rule: having flown recently resets the clock', r.json.me.flyer?.num === 'RESET12');
   const l2 = new Client(); await l2.call('POST', '/api/login', { email: 'land2@example.com', password: 'Wing#Mate24' }); r = await l2.call('GET', '/api/sync');
   ok('3-month rule: recent flyer keeps details', r.json.me.flyer?.num === 'KEEP1234');
+  // layovers: more than one flight per person
+  {
+    const x = new Client(), y = new Client(), z = new Client();
+    await signup(x, 'Lena'); await signup(y, 'Yuri'); await signup(z, 'Zed');
+    const d1 = soon(100), d2 = soon(112);
+    const leg1 = { number: 'AK 111', date: dateStr(d1), from: 'CCU', to: 'KUL', departsAt: d1, landsAt: d1 + 4 * 3600e3 };
+    const leg2 = { number: 'AK 222', date: dateStr(d2), from: 'KUL', to: 'HKG', departsAt: d2, landsAt: d2 + 4 * 3600e3 };
+    ok('Lena adds leg 1', (await x.call('PUT', '/api/flight', leg1)).status === 200);
+    ok('Lena adds leg 2', (await x.call('PUT', '/api/flight', leg2)).status === 200);
+    await y.call('PUT', '/api/flight', leg1);   // Yuri is only on the first leg
+    await z.call('PUT', '/api/flight', leg2);   // Zed is only on the second leg
+    r = await x.call('GET', '/api/sync');
+    ok('two flights listed, earliest first', r.json.flights.length === 2 && r.json.flights[0].number === 'AK 111' && r.json.flights[1].number === 'AK 222');
+    const yuri = r.json.people.find(p => p.name === 'Yuri T.'), zed = r.json.people.find(p => p.name === 'Zed T.');
+    ok('Lena sees people from both flights', !!yuri && !!zed);
+    ok('each person is labelled with the shared flight', yuri.flights.length === 1 && yuri.flights[0].number === 'AK 111' && zed.flights.length === 1 && zed.flights[0].number === 'AK 222');
+    r = await y.call('GET', '/api/sync'); ok('Yuri (one flight) sees Lena on that flight only', r.json.people.length === 1 && r.json.people[0].flights[0].number === 'AK 111' && !r.json.people.some(p => p.name === 'Zed T.'));
+    const lena = r.json.people[0];
+    r = await y.call('POST', '/api/connections', { to: lena.id, flightKey: 'AK 222|' + dateStr(d2) }); ok('connect on a flight you do not share still works (uses the shared one)', r.status === 200);
+    await x.call('POST', '/api/connections/respond', { from: (await x.call('GET', '/api/sync')).json.people.find(p => p.name === 'Yuri T.').id, accept: true });
+    r = await x.call('GET', '/api/sync'); const yc = r.json.people.find(p => p.name === 'Yuri T.');
+    ok('connected person keeps the flight label', yc.conn === 'connected' && yc.flights[0].number === 'AK 111' && yc.window && !yc.window.closed);
+    ok('5th flight refused', await (async () => { for (let i = 0; i < 3; i++) { const d = soon(200 + i * 5); await x.call('PUT', '/api/flight', { number: 'AK 30' + i, date: dateStr(d), from: 'HKG', to: 'KUL', departsAt: d, landsAt: d + 4 * 3600e3 }); } const d = soon(300); return (await x.call('PUT', '/api/flight', { number: 'AK 399', date: dateStr(d), from: 'HKG', to: 'KUL', departsAt: d, landsAt: d + 4 * 3600e3 })).status === 400; })());
+    r = await x.call('DELETE', '/api/flight?key=' + encodeURIComponent('AK 222|' + dateStr(d2))); ok('remove one flight', r.status === 200);
+    r = await x.call('GET', '/api/sync'); ok('the other flights stay', r.json.flights.length === 3 && !r.json.flights.some(f => f.number === 'AK 222'));
+    ok('Zed no longer shown to Lena after the shared flight is removed', !r.json.people.some(p => p.name === 'Zed T.'));
+    r = await x.call('DELETE', '/api/flight'); r = await x.call('GET', '/api/sync'); ok('remove all flights', r.json.flights.length === 0 && r.json.flight === null);
+  }
 } finally {
   try { await stop(); } catch {}
   rmSync(dir, { recursive: true, force: true });

@@ -36,6 +36,14 @@ export const SCHEMA: string[] = [
   created_by INTEGER,
   created_at INTEGER NOT NULL
 )`,
+  `CREATE TABLE IF NOT EXISTS user_flights (
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  flight_key TEXT NOT NULL,
+  PRIMARY KEY (user_id, flight_key)
+)`,
+  `CREATE INDEX IF NOT EXISTS uf_flight ON user_flights(flight_key)`,
+  // people who saved a single flight before layovers were supported keep it
+  `INSERT OR IGNORE INTO user_flights (user_id, flight_key) SELECT id, flight_key FROM users WHERE flight_key IS NOT NULL`,
   `CREATE TABLE IF NOT EXISTS connections (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   from_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,

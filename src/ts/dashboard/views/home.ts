@@ -3,7 +3,7 @@ import { TRIPS, getPeople } from '../data';
 import { ranked } from '../matching';
 import { GOAL_LABEL } from '../options';
 import { state } from '../state';
-import { avatar, connectButton } from '../ui';
+import { avatar, connectButton, flightTags } from '../ui';
 import type { Prefs } from '../types';
 import { BRAND } from '../../shared/brand';
 
@@ -32,7 +32,7 @@ export function renderHome(): void {
         .slice(0, 3)
         .map(
           ({ p, s }) =>
-            `<div class="mate-compact">${avatar(p)}<div class="nm"><b>${esc(p.name)}</b><span>${esc(p.type)} trip · ${esc(GOAL_LABEL[p.why])}</span></div><span class="chip soft">${s.pct}% match</span>${connectButton(p.id, true)}</div>`,
+            `<div class="mate-compact">${avatar(p)}<div class="nm"><b>${esc(p.name)}</b><span>${esc(p.type)} trip · ${esc(GOAL_LABEL[p.why])}</span>${flightTags(p)}</div><span class="chip soft">${s.pct}% match</span>${connectButton(p.id, true)}</div>`,
         )
         .join('');
 

@@ -4,7 +4,7 @@ import { save } from '../sync';
 import { ranked } from '../matching';
 import { FILTER_KEYS, GOAL_LABEL, INTERESTS, PREF_KEYS, PREF_LABEL, isOneOf, type FilterKey, type Interest } from '../options';
 import { emptyFilters, state } from '../state';
-import { avatar, connectButton, toast } from '../ui';
+import { avatar, connectButton, flightTags, toast } from '../ui';
 import { refreshAll } from '../router';
 import { BRAND } from '../../shared/brand';
 
@@ -63,7 +63,7 @@ export function renderFind(): void {
   });
   if ($<HTMLSelectElement>('#sort').value === 'name') list.sort((a, b) => a.p.name.localeCompare(b.p.name));
 
-  $('#resultCount').textContent = `${list.length} ${list.length === 1 ? BRAND.guest : BRAND.guests} ${state.flight ? `on ${state.flight.number} to ${state.flight.to}` : '(add your flight to see who is aboard)'}`;
+  $('#resultCount').textContent = `${list.length} ${list.length === 1 ? BRAND.guest : BRAND.guests} ${state.flights.length > 1 ? `on your ${state.flights.length} flights` : state.flight ? `on ${state.flight.number} to ${state.flight.to}` : '(add your flight to see who is aboard)'}`;
   box.innerHTML = list.length
     ? list
         .map(({ p, s }) => {
@@ -77,6 +77,7 @@ export function renderFind(): void {
     <article class="mate">
       <div class="mate-top">${avatar(p)}<div class="nm"><b>${esc(p.name)}</b><span>${esc(p.type)} trip</span></div>
         <div class="ring" style="--p:${s.pct}" title="${s.pct}% match"><span>${s.pct}%</span></div></div>
+      ${flightTags(p)}
       <p class="bio">${esc(p.bio)}</p>
       <div class="chips">${chips}</div>
       <div class="facts">

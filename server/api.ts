@@ -31,6 +31,28 @@ const flightDto = (f: FlightRow | undefined) =>
 const getUser = (db: Db, id: number): Promise<UserRow | undefined> => db.get<UserRow>('SELECT * FROM users WHERE id = ?', id);
 const getFlight = async (db: Db, key: string | null): Promise<FlightRow | undefined> => (key ? db.get<FlightRow>('SELECT * FROM flights WHERE key = ?', key) : undefined);
 
+const MAX_FLIGHTS = 4;
+/** users.flight_key mirrors the earliest of a person's flights (kept so older data and tools still make sense). */
+const SET_FIRST_FLIGHT =
+  'UPDATE users SET flight_key = (SELECT uf.flight_key FROM user_flights uf JOIN flights f ON f.key = uf.flight_key WHERE uf.user_id = users.id ORDER BY f.departs_at LIMIT 1) WHERE id = ?';
+const myFlights = (db: Db, userId: number): Promise<FlightRow[]> =>
+  db.all<FlightRow>('SELECT f.* FROM flights f JOIN user_flights uf ON uf.flight_key = f.key WHERE uf.user_id = ? ORDER BY f.departs_at', userId);
+
+/** Flights both people are on. */
+const sharedFlights = (db: Db, a: number, b: number): Promise<FlightRow[]> =>
+  db.all<FlightRow>(
+    'SELECT f.* FROM flights f JOIN user_flights x ON x.flight_key = f.key AND x.user_id = ? JOIN user_flights y ON y.flight_key = f.key AND y.user_id = ? ORDER BY f.departs_at',
+    a, b,
+  );
+
+/** A chat stays open until 48 hours after the last flight the two share (or the one it was started on) has landed. */
+async function chatFlight(db: Db, a: number, b: number, conn: ConnRow): Promise<FlightRow | undefined> {
+  const all = await sharedFlights(db, a, b);
+  const started = await getFlight(db, conn.flight_key);
+  if (started && !all.some((f) => f.key === started.key)) all.push(started);
+  return all.sort((x, y) => y.lands_at - x.lands_at)[0];
+}
+
 const isBlocked = async (db: Db, a: number, b: number): Promise<boolean> =>
   !!(await db.get('SELECT 1 AS x FROM blocks WHERE (blocker_id = ? AND blocked_id = ?) OR (blocker_id = ? AND blocked_id = ?)', a, b, b, a));
 
@@ -73,10 +95,19 @@ async function peopleFor(db: Db, me: UserRow, now: number) {
   for (const c of conns) connWith.set(c.from_id === me.id ? c.to_id : c.from_id, c);
 
   const users = new Map<number, UserRow>();
+  const mine = await myFlights(db, me.id);
+  const myKeys = mine.map((f) => f.key);
+  // which of my flights each person is also on
+  const sharedKeys = new Map<number, string[]>();
   // people on the same flight (only while I am open to connect myself, and only people who confirmed their email)
-  if (me.visible && me.flight_key) {
-    const same = await db.all<UserRow>('SELECT * FROM users WHERE id != ? AND visible = 1 AND email_verified = 1 AND flight_key = ?', me.id, me.flight_key);
-    for (const u of same) users.set(u.id, u);
+  if (me.visible && myKeys.length) {
+    const rows = await db.all<{ user_id: number; flight_key: string }>(
+      `SELECT uf.user_id, uf.flight_key FROM user_flights uf JOIN users u ON u.id = uf.user_id WHERE u.id != ? AND u.visible = 1 AND u.email_verified = 1 AND uf.flight_key IN (${placeholders(myKeys.length)})`,
+      me.id, ...myKeys,
+    );
+    for (const r of rows) sharedKeys.set(r.user_id, [...(sharedKeys.get(r.user_id) ?? []), r.flight_key]);
+    const ids = [...sharedKeys.keys()];
+    if (ids.length) for (const u of await db.all<UserRow>(`SELECT * FROM users WHERE id IN (${placeholders(ids.length)})`, ...ids)) users.set(u.id, u);
   }
   // anyone I have a connection or an open request with, even from an earlier flight
   const relatedIds = [...connWith.entries()]
@@ -87,16 +118,35 @@ async function peopleFor(db: Db, me: UserRow, now: number) {
     for (const u of await db.all<UserRow>(`SELECT * FROM users WHERE id IN (${placeholders(relatedIds.length)})`, ...relatedIds)) users.set(u.id, u);
   }
 
-  const flightKeys = [...new Set([...connWith.values()].filter((c) => c.status === 'connected').map((c) => c.flight_key))];
-  const flights = new Map<string, FlightRow>();
-  if (flightKeys.length) for (const f of await db.all<FlightRow>(`SELECT * FROM flights WHERE key IN (${placeholders(flightKeys.length)})`, ...flightKeys)) flights.set(f.key, f);
+  // every flight we need to describe: the ones we share, plus the one each connection started on
+  const known = new Map<string, FlightRow>(mine.map((f) => [f.key, f]));
+  const wanted = [...new Set([...connWith.values()].map((c) => c.flight_key))].filter((k) => !known.has(k));
+  if (wanted.length) for (const f of await db.all<FlightRow>(`SELECT * FROM flights WHERE key IN (${placeholders(wanted.length)})`, ...wanted)) known.set(f.key, f);
+  // for connected people the chat stays open until the last flight they share has landed
+  const theirKeys = new Map<number, Set<string>>();
+  const connectedIds = [...connWith.entries()].filter(([, c]) => c.status === 'connected').map(([id]) => id);
+  if (connectedIds.length && myKeys.length) {
+    const rows = await db.all<{ user_id: number; flight_key: string }>(
+      `SELECT user_id, flight_key FROM user_flights WHERE user_id IN (${placeholders(connectedIds.length)}) AND flight_key IN (${placeholders(myKeys.length)})`,
+      ...connectedIds, ...myKeys,
+    );
+    for (const r of rows) theirKeys.set(r.user_id, (theirKeys.get(r.user_id) ?? new Set()).add(r.flight_key));
+  }
 
   return [...users.values()]
     .filter((u) => !blocked.has(u.id))
     .map((u) => {
       const row = connWith.get(u.id);
       const conn = connState(me.id, row);
-      const window: ChatWindow | undefined = conn === 'connected' && row ? windowFor(flights.get(row.flight_key), now) : undefined;
+      // flights to label this person with: the ones we share; for an old connection, the one it started on
+      const keys = new Set<string>([...(sharedKeys.get(u.id) ?? []), ...(theirKeys.get(u.id) ?? [])]);
+      if (row && !keys.size) keys.add(row.flight_key);
+      const flights = [...keys].map((k) => known.get(k)).filter((f): f is FlightRow => !!f).sort((a, b) => a.departs_at - b.departs_at);
+      let window: ChatWindow | undefined;
+      if (conn === 'connected' && row) {
+        const last = [...flights, known.get(row.flight_key)].filter((f): f is FlightRow => !!f).sort((a, b) => b.lands_at - a.lands_at)[0];
+        window = windowFor(last, now);
+      }
       return {
         id: String(u.id),
         name: displayName(u),
@@ -105,6 +155,7 @@ async function peopleFor(db: Db, me: UserRow, now: number) {
         ...userPrefs(u),
         ...(conn ? { conn } : {}),
         ...(window ? { window } : {}),
+        flights: flights.map((f) => flightDto(f)),
       };
     });
 }
@@ -132,11 +183,14 @@ async function messagesFor(db: Db, me: number, after: number) {
 
 async function syncPayload(db: Db, me: UserRow, after: number) {
   const now = Date.now();
-  const [messages, flight, people] = [await messagesFor(db, me.id, after), await getFlight(db, me.flight_key), await peopleFor(db, me, now)];
+  const [messages, flights, people] = [await messagesFor(db, me.id, after), await myFlights(db, me.id), await peopleFor(db, me, now)];
+  // the flight to show first: the next one that has not landed yet, or the last one
+  const current = flights.find((f) => f.lands_at > now) ?? flights[flights.length - 1];
   return {
     now,
     me: meDto(me),
-    flight: flightDto(flight),
+    flight: flightDto(current),
+    flights: flights.map((f) => flightDto(f)),
     people,
     messages,
     cursor: messages.length ? Math.max(...messages.map((m) => m.id)) : after,
@@ -357,18 +411,25 @@ const routes: Record<string, Handler> = {
     const me = requireUser(ctx);
     const input = v.flight(await readJson(ctx.request));
     const key = `${input.number}|${input.date}`;
+    const have = await myFlights(ctx.db, me.id);
+    if (!have.some((f) => f.key === key) && have.length >= MAX_FLIGHTS) throw bad(`You can add up to ${MAX_FLIGHTS} flights. Remove one first.`, 'number');
     // The first person to enter a flight sets its times; everyone after joins the same record.
     // (In production these come from the airline's schedule, not from users.)
     await ctx.db.batch([
       stmt('INSERT OR IGNORE INTO flights (key, number, from_code, to_code, departs_at, lands_at, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)', key, input.number, input.from, input.to, input.departsAt, input.landsAt, me.id, Date.now()),
-      stmt('UPDATE users SET flight_key = ? WHERE id = ?', key, me.id),
+      stmt('INSERT OR IGNORE INTO user_flights (user_id, flight_key) VALUES (?, ?)', me.id, key),
+      stmt(SET_FIRST_FLIGHT, me.id),
     ]);
     return ok();
   },
 
   async 'DELETE /api/flight'(ctx) {
     const me = requireUser(ctx);
-    await ctx.db.run('UPDATE users SET flight_key = NULL WHERE id = ?', me.id);
+    const key = ctx.query.get('key');
+    await ctx.db.batch([
+      key ? stmt('DELETE FROM user_flights WHERE user_id = ? AND flight_key = ?', me.id, key) : stmt('DELETE FROM user_flights WHERE user_id = ?', me.id),
+      stmt(SET_FIRST_FLIGHT, me.id),
+    ]);
     return ok();
   },
 
@@ -379,20 +440,23 @@ const routes: Record<string, Handler> = {
     const b = await readJson(ctx.request);
     const notAvailable = new HttpError(404, 'not_found', 'That person is not available.');
     const target = await getUser(db, Number(b.to));
-    if (!target || target.id === me.id || !me.flight_key || !me.visible) throw notAvailable;
-    const sameFlight = target.flight_key === me.flight_key;
+    if (!target || target.id === me.id || !me.visible) throw notAvailable;
+    const shared = await sharedFlights(db, me.id, target.id);
     const existing = await pairConnection(db, me.id, target.id);
-    if ((await isBlocked(db, me.id, target.id)) || !(sameFlight || existing) || (!target.visible && !existing)) throw notAvailable;
+    if ((await isBlocked(db, me.id, target.id)) || !(shared.length || existing) || (!target.visible && !existing)) throw notAvailable;
+    // the flight this connection is about: the one they picked if you share it, otherwise your first shared flight
+    const picked = shared.find((f) => f.key === b.flightKey) ?? shared.find((f) => f.lands_at > Date.now()) ?? shared[0];
+    const flightKey = picked?.key ?? existing?.flight_key ?? '';
 
     const now = Date.now();
     let accepted = false;
     if (!existing) {
-      await db.run("INSERT INTO connections (from_id, to_id, status, flight_key, created_at, updated_at) VALUES (?, ?, 'requested', ?, ?, ?)", me.id, target.id, me.flight_key, now, now);
+      await db.run("INSERT INTO connections (from_id, to_id, status, flight_key, created_at, updated_at) VALUES (?, ?, 'requested', ?, ?, ?)", me.id, target.id, flightKey, now, now);
     } else if (existing.status === 'requested' && existing.to_id === me.id) {
       await db.run("UPDATE connections SET status = 'connected', updated_at = ? WHERE id = ?", now, existing.id); // they asked first: it is mutual
       accepted = true;
     } else if (existing.status === 'declined' && existing.to_id === me.id) {
-      await db.run("UPDATE connections SET from_id = ?, to_id = ?, status = 'requested', flight_key = ?, updated_at = ? WHERE id = ?", me.id, target.id, me.flight_key, now, existing.id);
+      await db.run("UPDATE connections SET from_id = ?, to_id = ?, status = 'requested', flight_key = ?, updated_at = ? WHERE id = ?", me.id, target.id, flightKey, now, existing.id);
     }
     // declined (by them) or already requested/connected: nothing changes, and nothing is revealed
     return ok({ conn: accepted ? 'connected' : 'requested' });
@@ -418,7 +482,7 @@ const routes: Record<string, Handler> = {
     const text = v.str(b.text, 'text', 1, 1000);
     const row = await pairConnection(db, me.id, to);
     if (!row || row.status !== 'connected' || (await isBlocked(db, me.id, to))) throw new HttpError(403, 'not_connected', 'You can only message people you are connected with.');
-    if (windowFor(await getFlight(db, row.flight_key), Date.now()).closed) throw new HttpError(403, 'chat_closed', 'This chat closed 48 hours after landing.');
+    if (windowFor(await chatFlight(db, me.id, to, row), Date.now()).closed) throw new HttpError(403, 'chat_closed', 'This chat closed 48 hours after landing.');
     const id = (await db.run('INSERT INTO messages (from_id, to_id, text, created_at) VALUES (?, ?, ?, ?)', me.id, to, text, Date.now())).id;
     return json(201, { ok: true, id });
   },

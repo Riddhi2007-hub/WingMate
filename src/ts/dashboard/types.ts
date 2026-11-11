@@ -22,6 +22,8 @@ export interface Person extends Prefs {
   conn?: Connection;
   /** For connected people: whether their chat is still open. */
   window?: ChatWindow;
+  /** The flights you share with this person (or, for an old connection, the one it started on). */
+  flights: Flight[];
 }
 
 export interface Trip {

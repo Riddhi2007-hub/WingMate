@@ -34,6 +34,7 @@ interface SyncDto {
     lastFlightAt: number;
   };
   flight: Flight | null;
+  flights: Flight[];
   people: Person[];
   messages: MessageDto[];
   cursor: number;
@@ -70,7 +71,7 @@ function toLogin(): void {
 }
 
 const snapshot = (dto: SyncDto): string =>
-  JSON.stringify({ me: dto.me, flight: dto.flight, people: dto.people });
+  JSON.stringify({ me: dto.me, flight: dto.flight, flights: dto.flights, people: dto.people });
 
 let lastSnapshot = '';
 
@@ -91,7 +92,9 @@ function apply(dto: SyncDto): boolean {
     state.saveData = dto.me.saveData;
     state.flyer = dto.me.flyer ? { num: dto.me.flyer.num, tier: dto.me.flyer.tier as 'Green' } : null;
     state.lastFlight = dto.me.lastFlightAt;
-    state.flight = dto.flight;
+    state.flights = dto.flights;
+    state.flight = dto.flights.find((f) => f.key === state.flightSel) ?? dto.flight;
+    state.flightSel = state.flight?.key ?? null;
     setPeople(dto.people);
     state.conn = {};
     state.windows = {};

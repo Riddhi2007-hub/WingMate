@@ -56,7 +56,8 @@
         <div class="line"><i></i><svg class="i" viewBox="0 0 24 24" style="transform:rotate(90deg)"><path d="M12 2l2 8 8 4v2l-8-2-1 6 3 2v2l-4-1-4 1v-2l3-2-1-6-8 2v-2l8-4z"></path></svg><i></i></div>
         <div><b id="routeTo">---</b><span id="toTime"></span></div>
       </div>
-      <div class="meta"><span id="flightMeta"></span> <button class="btn ghost sm" id="flightBtn" type="button">Add my flight</button></div>
+      <div class="meta"><span id="flightMeta"></span> <button class="btn ghost sm" id="flightBtn" type="button">Add my flight</button> <button class="btn ghost sm" id="addLegBtn" type="button" hidden>+ Connecting flight</button></div>
+      <div class="legs" id="legs" hidden></div>
       <label class="switch"><input type="checkbox" id="visibleToggle"><span class="track"></span><span>Open to connect with fellow {{guests}}</span></label>
     </div>
     {{flight}}

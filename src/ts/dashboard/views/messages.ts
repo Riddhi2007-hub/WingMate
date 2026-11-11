@@ -5,7 +5,7 @@ import { closesIn, stageLabel } from '../flight';
 import { stageOf } from '../../shared/stage';
 import { nowMs, state } from '../state';
 import { save, sync } from '../sync';
-import { avatar, connectedPeople, fmtTime, toast, updateNavDot } from '../ui';
+import { avatar, connectedPeople, fmtTime, flightTags, toast, updateNavDot } from '../ui';
 
 /** Clears the unread count for a chat and tells the server. */
 export function markRead(id: string): void {
@@ -49,7 +49,7 @@ export function renderMessages(): void {
       const thread = state.chats[p.id] ?? [];
       const last = thread[thread.length - 1];
       const unread = state.unread[p.id];
-      return `<button class="conv ${p.id === state.activeChat ? 'active' : ''}" data-chat="${esc(p.id)}">${avatar(p)}<span class="nm"><b>${esc(p.name)}</b><span>${last ? esc(last.text) : 'Say hello'}</span></span>${unread ? `<span class="ub">${unread}</span>` : ''}</button>`;
+      return `<button class="conv ${p.id === state.activeChat ? 'active' : ''}" data-chat="${esc(p.id)}">${avatar(p)}<span class="nm"><b>${esc(p.name)}</b><span>${last ? esc(last.text) : 'Say hello'}</span>${p.flights.length ? `<small class="cflight">&#9992; ${esc(p.flights.map((f) => f.number).join(', '))}</small>` : ''}</span>${unread ? `<span class="ub">${unread}</span>` : ''}</button>`;
     })
     .join('');
   const requests = requestsHTML();
@@ -66,7 +66,10 @@ export function renderMessages(): void {
 
   const window = state.windows[person.id];
   const closed = window?.closed ?? false;
-  const stage = state.flight ? stageOf(state.flight, nowMs()) : 'pre';
+  // the stage of the flight this chat is about: the next one you share that has not landed, or the last one
+  const shared = person.flights;
+  const chatFlight = shared.find((f) => f.landsAt > nowMs()) ?? shared[shared.length - 1];
+  const stage = chatFlight ? stageOf(chatFlight, nowMs()) : 'pre';
   let banner: string;
   if (closed) banner = `<div class="banner closed">This chat closed 48 hours after landing. You can no longer send messages.</div>`;
   else if (stage === 'pre') banner = `<div class="banner">Pre-flight chat. You can keep chatting once you are on board.</div>`;
@@ -78,7 +81,7 @@ export function renderMessages(): void {
     .join('');
 
   thread.innerHTML = `
-    <div class="th-head">${avatar(person)}<div class="nm"><b>${esc(person.name)}</b><span>${esc(stageLabel(closed ? 'closed' : stage))}</span></div><span class="th-tools"><button class="btn sm ghost" data-block="${esc(person.id)}" type="button">Block</button> <button class="btn sm ghost" data-report="${esc(person.id)}" type="button">Report</button></span></div>
+    <div class="th-head">${avatar(person)}<div class="nm"><b>${esc(person.name)}</b><span>${esc(stageLabel(closed ? 'closed' : stage))}</span>${flightTags(person)}</div><span class="th-tools"><button class="btn sm ghost" data-block="${esc(person.id)}" type="button">Block</button> <button class="btn sm ghost" data-report="${esc(person.id)}" type="button">Report</button></span></div>
     ${banner}
     <div class="bubbles" id="bubbles" aria-live="polite">${bubbles}</div>
     <form class="composer" id="composer"><input type="text" id="msgInput" maxlength="1000" placeholder="${closed ? 'This chat is closed' : 'Write a message'}" ${closed ? 'disabled' : ''} aria-label="Message" autocomplete="off"><button class="btn" ${closed ? 'disabled' : ''}>Send</button></form>`;

@@ -65,6 +65,8 @@ export function stageUI(): void {
     $('#toTime').textContent = '';
     $('#flightMeta').textContent = 'Add your flight to see who else is on it.';
     $('#flightBtn').textContent = 'Add my flight';
+    $('#addLegBtn').hidden = true;
+    $('#legs').hidden = true;
     return;
   }
   const days = Math.max(1, Math.round((flight.departsAt - nowMs()) / 864e5));
@@ -82,6 +84,19 @@ export function stageUI(): void {
   $('#toTime').textContent = fmtClock(flight.landsAt);
   $('#flightMeta').innerHTML = `${esc(flight.number)} · ${esc(date)}`;
   $('#flightBtn').textContent = 'Change flight';
+  $('#addLegBtn').hidden = state.flights.length >= MAX_FLIGHTS;
+  renderLegs();
+}
+
+const MAX_FLIGHTS = 4;
+
+/** With a layover there is more than one flight: a chip for each lets you switch which one the card shows. */
+function renderLegs(): void {
+  const box = $('#legs');
+  box.hidden = state.flights.length < 2;
+  box.innerHTML = state.flights
+    .map((f, i) => `<button type="button" class="leg ${f.key === state.flight?.key ? 'on' : ''}" data-leg="${esc(f.key)}" aria-pressed="${f.key === state.flight?.key}"><b>${i + 1}</b> ${esc(f.number)} <small>${esc(f.from)} → ${esc(f.to)}</small></button>`)
+    .join('');
 }
 
 /* ---------- add / change flight dialog ---------- */
@@ -93,14 +108,27 @@ const localInput = (ms: number): string => {
 };
 const input = (id: string): HTMLInputElement => $<HTMLInputElement>(id);
 
-export function openFlightDialog(): void {
-  const f = state.flight;
+/** The flight being edited (null when adding a new one). */
+let editKey: string | null = null;
+
+const flightKeyOf = (number: string, date: string): string => {
+  const n = number.trim().toUpperCase().replace(/\s+/g, '');
+  const m = /^([A-Z0-9]{2})(\d.*)$/.exec(n);
+  return `${m ? `${m[1]} ${m[2]}` : n}|${date}`;
+};
+
+export function openFlightDialog(mode: 'edit' | 'new' = 'edit'): void {
+  const f = mode === 'edit' ? state.flight : null;
+  const prev = state.flights[state.flights.length - 1];
+  editKey = f?.key ?? null;
   input('#fNumber').value = f?.number ?? '';
-  input('#fDate').value = f ? localInput(f.departsAt).slice(0, 10) : '';
-  input('#fFrom').value = f?.from ?? '';
+  // a connecting flight usually leaves from where the last one landed
+  input('#fDate').value = f ? localInput(f.departsAt).slice(0, 10) : prev ? localInput(prev.landsAt).slice(0, 10) : '';
+  input('#fFrom').value = f?.from ?? prev?.to ?? '';
   input('#fTo').value = f?.to ?? '';
   input('#fDep').value = f ? localInput(f.departsAt) : '';
   input('#fArr').value = f ? localInput(f.landsAt) : '';
+  $('#fmTitle').textContent = f ? 'Your flight' : state.flights.length ? 'Add a connecting flight' : 'Your flight';
   $('#fErr').textContent = '';
   $('#fRemove').hidden = !f;
   $('#flightModal').hidden = false;
@@ -112,9 +140,18 @@ const closeFlightDialog = (): void => {
 };
 
 export function initFlight(): void {
-  $('#flightBtn').addEventListener('click', openFlightDialog);
+  $('#flightBtn').addEventListener('click', () => openFlightDialog(state.flight ? 'edit' : 'new'));
+  $('#addLegBtn').addEventListener('click', () => openFlightDialog('new'));
+  $('#legs').addEventListener('click', (event) => {
+    const key = (event.target as HTMLElement).closest<HTMLElement>('[data-leg]')?.dataset.leg;
+    const f = state.flights.find((x) => x.key === key);
+    if (!f) return;
+    state.flightSel = f.key;
+    state.flight = f;
+    stageUI();
+  });
   document.addEventListener('click', (event) => {
-    if ((event.target as HTMLElement).closest('[data-act="addFlight"]')) openFlightDialog();
+    if ((event.target as HTMLElement).closest('[data-act="addFlight"]')) openFlightDialog('new');
   });
   $('#fCancel').addEventListener('click', closeFlightDialog);
   $('#flightModal').addEventListener('click', (event) => {
@@ -128,8 +165,10 @@ export function initFlight(): void {
   });
 
   $('#fRemove').addEventListener('click', () => {
-    void save(() => api('DELETE', '/api/flight')).then(() => {
+    void save(() => api('DELETE', `/api/flight${editKey ? `?key=${encodeURIComponent(editKey)}` : ''}`)).then(async () => {
+      state.flightSel = null;
       closeFlightDialog();
+      await sync();
       refreshAll();
       toast('Flight removed');
     });
@@ -145,8 +184,14 @@ export function initFlight(): void {
       departsAt: new Date(input('#fDep').value).getTime(),
       landsAt: new Date(input('#fArr').value).getTime(),
     };
-    void save(() => api('PUT', '/api/flight', body))
+    const newKey = flightKeyOf(body.number, body.date);
+    void save(async () => {
+      await api('PUT', '/api/flight', body);
+      // editing a flight's number or date makes it a different flight: drop the old one
+      if (editKey && editKey !== newKey) await api('DELETE', `/api/flight?key=${encodeURIComponent(editKey)}`);
+    })
       .then(async () => {
+        state.flightSel = newKey;
         closeFlightDialog();
         await sync();
         refreshAll();

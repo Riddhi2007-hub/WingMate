@@ -33,7 +33,7 @@ function connect(person: Person): void {
   }
   state.conn[person.id] = 'requested';
   refreshAll();
-  void save(() => api('POST', '/api/connections', { to: person.id }))
+  void save(() => api('POST', '/api/connections', { to: person.id, flightKey: (person.flights.find((f) => f.key === state.flight?.key) ?? person.flights[0])?.key }))
     .then(async () => {
       await sync();
       toast(state.conn[person.id] === 'connected' ? `You are now connected with ${firstName(person)}` : `Request sent to ${firstName(person)}`);
