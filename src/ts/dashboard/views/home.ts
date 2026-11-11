@@ -1,5 +1,6 @@
 import { $, esc } from '../../shared/dom';
 import { TRIPS, getPeople } from '../data';
+import { destinationFor } from '../destinations';
 import { ranked } from '../matching';
 import { GOAL_LABEL } from '../options';
 import { state } from '../state';
@@ -58,8 +59,10 @@ function renderSuggestions(): void {
   const body = $('#suggestBody');
 
   if (prefs.why === 'travel') {
-    title.textContent = 'Suggested trip packages';
-    const best = TRIPS.map((trip) => ({ trip, n: trip.tags.filter((tag) => prefs.interests.includes(tag)).length }))
+    // ideas for the place you are flying to, when we have them; otherwise the general ones
+    const dest = destinationFor(state.flight?.to);
+    title.textContent = dest ? `Trip ideas for ${dest.city}` : 'Suggested trip packages';
+    const best = (dest?.trips ?? TRIPS).map((trip) => ({ trip, n: trip.tags.filter((tag) => prefs.interests.includes(tag)).length }))
       .sort((a, b) => b.n - a.n)
       .slice(0, 3);
     body.innerHTML = best
@@ -70,6 +73,7 @@ function renderSuggestions(): void {
         return `<div class="trip"><div class="sw"><span>${trip.days}<small>days</small></span></div><div class="bd"><div><h3>${esc(trip.name)}</h3><p>${esc(trip.text)}</p></div><div class="chips">${tags}</div><div><button class="btn ghost sm" data-act="tripmates" data-tag="${esc(trip.tags[0])}">See mates who like this</button></div></div></div>`;
       })
       .join('');
+    if (dest) body.innerHTML += `<p class="hint" style="margin-top:2px">Ideas for your trip, not bookable packages. Check details before you go.</p>`;
   } else if (prefs.why === 'cab') {
     title.textContent = 'Share a cab after landing';
     const n = getPeople().filter((p) => p.why === 'cab').length;

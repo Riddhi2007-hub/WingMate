@@ -152,6 +152,7 @@ export function initFlight(): void {
     state.flightSel = f.key;
     state.flight = f;
     stageUI();
+    refreshAll();
   });
   document.addEventListener('click', (event) => {
     if ((event.target as HTMLElement).closest('[data-act="addFlight"]')) openFlightDialog('new');
