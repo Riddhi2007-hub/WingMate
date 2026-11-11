@@ -88,3 +88,16 @@ html[data-theme="dark"] .stop:has(input:checked){background-color:var(--tint);bo
 html[data-theme="dark"] .common{background:#2a2419;color:#f3e6c9;border-color:var(--line)}
 html[data-theme="dark"] .bub.them .pchip{background:rgba(255,255,255,.1)}
 html[data-theme="dark"] .pl-bd b,html[data-theme="dark"] .trip h3{color:var(--ink)}
+
+/* games: the drawing canvas stays white, everything around it goes dark */
+html[data-theme="dark"] .skr-clock,html[data-theme="dark"] .skr-sizes button,html[data-theme="dark"] .skr-tool,html[data-theme="dark"] .skr-chat,html[data-theme="dark"] .skr-p{background-color:var(--surface-2);color:var(--ink);border-color:var(--line)}
+html[data-theme="dark"] .skr-p:nth-child(even),html[data-theme="dark"] .skr-msgs div:nth-child(even){background-color:var(--surface)}
+html[data-theme="dark"] .skr-p b{color:var(--ink)}
+html[data-theme="dark"] .skr-top{background:var(--surface-2)}
+html[data-theme="dark"] .skr-clock.low{background:#e8202a;color:#fff}
+html[data-theme="dark"] .skr-sizes button i{background:var(--ink)}
+html[data-theme="dark"] .skr-sizes button[aria-pressed=true] i{background:var(--brand-text)}
+html[data-theme="dark"] .skr-palette{border-color:var(--line)}
+html[data-theme="dark"] .skr-input{border-color:var(--line)}
+html[data-theme="dark"] .gc-row{background:var(--surface-2)}
+html[data-theme="dark"] .gc-row.invite{background:var(--tint)}
