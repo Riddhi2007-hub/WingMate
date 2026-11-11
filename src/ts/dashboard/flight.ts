@@ -6,6 +6,8 @@ import { refreshAll } from './router';
 import { nowMs, state } from './state';
 import { save, sync } from './sync';
 import { toast } from './ui';
+import { attachAirportPicker } from './airportPicker';
+import { resolveAirport } from './airports';
 
 export { CHAT_WINDOW_HOURS };
 
@@ -132,6 +134,7 @@ export function openFlightDialog(mode: 'edit' | 'new' = 'edit'): void {
   $('#fErr').textContent = '';
   $('#fRemove').hidden = !f;
   $('#flightModal').hidden = false;
+  for (const id of ['#fFrom', '#fTo']) input(id).dispatchEvent(new Event('change'));
   input('#fNumber').focus();
 }
 
@@ -153,6 +156,8 @@ export function initFlight(): void {
   document.addEventListener('click', (event) => {
     if ((event.target as HTMLElement).closest('[data-act="addFlight"]')) openFlightDialog('new');
   });
+  attachAirportPicker(input('#fFrom'));
+  attachAirportPicker(input('#fTo'));
   $('#fCancel').addEventListener('click', closeFlightDialog);
   $('#flightModal').addEventListener('click', (event) => {
     if ((event.target as HTMLElement).id === 'flightModal') closeFlightDialog();
@@ -179,11 +184,15 @@ export function initFlight(): void {
     const body = {
       number: input('#fNumber').value.trim(),
       date: input('#fDate').value,
-      from: input('#fFrom').value.trim().toUpperCase(),
-      to: input('#fTo').value.trim().toUpperCase(),
+      from: resolveAirport(input('#fFrom').value),
+      to: resolveAirport(input('#fTo').value),
       departsAt: new Date(input('#fDep').value).getTime(),
       landsAt: new Date(input('#fArr').value).getTime(),
     };
+    if (!body.from || !body.to) {
+      $('#fErr').textContent = 'Pick the airports from the list, or type the 3-letter code.';
+      return;
+    }
     const newKey = flightKeyOf(body.number, body.date);
     void save(async () => {
       await api('PUT', '/api/flight', body);

@@ -79,3 +79,30 @@ export const AIRPORTS: Airport[] = RAW.map(([code, city, country, lat, lon]) => 
 const BY_CODE = new Map(AIRPORTS.map((a) => [a.code, a]));
 
 export const airportByCode = (code: string): Airport | undefined => BY_CODE.get(code.trim().toUpperCase());
+
+/** Airports matching what someone typed: by code, city or country, best matches first. */
+export function searchAirports(text: string, limit = 6): Airport[] {
+  const q = text.trim().toLowerCase();
+  if (!q) return [];
+  const scored: Array<[number, Airport]> = [];
+  for (const a of AIRPORTS) {
+    const code = a.code.toLowerCase();
+    const city = a.city.toLowerCase();
+    const country = a.country.toLowerCase();
+    let score = -1;
+    if (code === q) score = 0;
+    else if (code.startsWith(q)) score = 1;
+    else if (city.startsWith(q)) score = 2;
+    else if (city.includes(q)) score = 3;
+    else if (country.startsWith(q)) score = 4;
+    if (score >= 0) scored.push([score, a]);
+  }
+  return scored.sort((x, y) => x[0] - y[0] || x[1].city.localeCompare(y[1].city)).slice(0, limit).map(([, a]) => a);
+}
+
+/** The 3-letter code for whatever was typed: a code as typed, or the best city match. Empty when there is no match. */
+export function resolveAirport(text: string): string {
+  const t = text.trim();
+  if (/^[A-Za-z]{3}$/.test(t)) return t.toUpperCase();
+  return searchAirports(t, 1)[0]?.code ?? '';
+}
