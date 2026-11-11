@@ -146,6 +146,12 @@ function rrect(g: CanvasRenderingContext2D, x: number, y: number, w: number, h: 
   g.closePath();
 }
 
+/** Camera distance (in planet radii) for a zoom level: 1 is a gentle view from afar, larger is closer. */
+function camDistance(zoom: number): number {
+  const k = zoom * zoom * (5 / 3);
+  return (k + 1) / (k - 1);
+}
+
 const PLANE = typeof Path2D === 'undefined' ? null : new Path2D('M12 2l2 8 8 4v2l-8-2-1 6 3 2v2l-4-1-4 1v-2l3-2-1-6-8 2v-2l8-4z');
 
 export interface GlobeApi {
@@ -282,7 +288,14 @@ export function initGlobe(host: HTMLElement): GlobeApi {
     const g = c2d;
     g.setTransform(dpr, 0, 0, dpr, 0, 0);
     g.clearRect(0, 0, w, h);
-    const R = radius() * cam.scale * zoom;
+    // A real perspective view: zooming moves the camera closer to the planet (distance D, in planet radii), and the
+    // focal length is chosen so the whole round edge always stays inside the circle. That keeps the curved horizon
+    // and the foreshortening at the edges, so it still looks like a ball when zoomed in, not a flat map.
+    const R = radius() * cam.scale; // radius of the planet's outline on screen
+    const D = camDistance(zoom);
+    const focal = R * Math.sqrt(D * D - 1);
+    const invD = 1 / D;
+    const liftScale = clamp((D - 1) / 1.2, 0.08, 1);
     const cx = w / 2;
     const cy = h / 2;
 
@@ -299,8 +312,10 @@ export function initGlobe(host: HTMLElement): GlobeApi {
     const zz = Math.sin(lat0);
     // returns screen x, y and depth (depth > 0 means facing us); `up` lifts the point off the ground
     const proj = (v: Vec, up = 0): [number, number, number] => {
-      const k = 1 + up;
-      return [cx + (v[0] * ex + v[1] * ey) * R * k, cy - (v[0] * nx + v[1] * ny + v[2] * nz) * R * k, v[0] * zx + v[1] * zy + v[2] * zz];
+      const k = 1 + up * liftScale;
+      const zc = v[0] * zx + v[1] * zy + v[2] * zz;
+      const dz = Math.max(0.03, D - k * zc);
+      return [cx + ((v[0] * ex + v[1] * ey) * focal * k) / dz, cy - ((v[0] * nx + v[1] * ny + v[2] * nz) * focal * k) / dz, zc - invD];
     };
 
     // glow around the planet
@@ -640,7 +655,7 @@ export function initGlobe(host: HTMLElement): GlobeApi {
       const dx = x - lastX;
       const dy = y - lastY;
       moved += Math.abs(dx) + Math.abs(dy);
-      const R = radius() * cam.scale * zoom;
+      const R = radius() * cam.scale * Math.sqrt((camDistance(zoom) + 1) / (camDistance(zoom) - 1)); // pixels per planet radius at the centre
       cam.lon = wrap(cam.lon - (dx / R) * DEG * 0.9);
       if (e.pointerType !== 'touch') cam.lat = clamp(cam.lat + (dy / R) * DEG * 0.9, -75, 75);
       spin = (-dx / R) * DEG * 0.9 / 16;
