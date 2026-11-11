@@ -166,3 +166,6 @@ build.mjs           builds src/ + brands/ -> dist/<brand>/
 
 ## Notes
 
+
+## Credits
+Globe country outlines: public-domain `johan/world.geo.json`, simplified by `scripts/build-world.mjs`.

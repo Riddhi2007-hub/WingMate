@@ -1,3 +1,4 @@
+import type { GlobeApi } from './globe';
 import { $, esc } from '../shared/dom';
 import { CHAT_WINDOW_HOURS, HOUR_MS, stageOf, type ChatWindow, type Stage } from '../shared/stage';
 import { ApiError, api } from '../shared/api';
@@ -36,7 +37,23 @@ export function myStage(): Stage | null {
 const fmtClock = (ms: number): string => new Date(ms).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
 
 /** Updates the flight card on the home page. */
+let globe: GlobeApi | null = null;
+let globeKey = '';
+let playNext = false;
+export function attachGlobe(api: GlobeApi): void {
+  globe = api;
+}
+function syncGlobe(): void {
+  const f = state.flight;
+  const key = f ? `${f.from}>${f.to}` : '';
+  if (key === globeKey) return;
+  globeKey = key;
+  globe?.setRoute(f?.from ?? null, f?.to ?? null, playNext || globeKey !== '');
+  playNext = false;
+}
+
 export function stageUI(): void {
+  syncGlobe();
   const { flight } = state;
   const stage = myStage();
   
@@ -134,6 +151,7 @@ export function initFlight(): void {
         await sync();
         refreshAll();
         toast('Flight saved');
+        globe?.replay();
       })
       .catch((error: unknown) => {
         $('#fErr').textContent = error instanceof ApiError ? error.message : 'Could not save. Try again.';

@@ -11,7 +11,8 @@
  */
 import '../shared/theme';
 import { initActions } from './actions';
-import { initFlight, stageUI } from './flight';
+import { attachGlobe, initFlight, stageUI } from './flight';
+import { initGlobe } from './globe';
 import { state } from './state';
 import { registerRefresh, registerView, initRouter, show, startView } from './router';
 import { hasLoaded, configureSync, startPolling, sync } from './sync';
@@ -52,6 +53,8 @@ async function main(): Promise<void> {
   initMessages();
   initGames();
   initProfile();
+  const globeHost = document.getElementById('globeWrap');
+  if (globeHost) attachGlobe(initGlobe(globeHost));
   initFlight();
 
   configureSync({ changed: renderAll, newMessage: onIncoming });

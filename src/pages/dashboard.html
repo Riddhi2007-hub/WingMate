@@ -59,6 +59,11 @@
       <label class="switch"><input type="checkbox" id="visibleToggle"><span class="track"></span><span>Open to connect with fellow {{guests}}</span></label>
     </div>
     {{flight}}
+    <div class="globe-wrap" id="globeWrap">
+      <canvas role="img" aria-label="Globe showing the network"></canvas>
+      <button class="globe-replay" type="button" data-globe-replay hidden>&#8635; Replay</button>
+      <span class="globe-note" data-globe-note>Drag to spin the globe. Tap an airport.</span>
+    </div>
   </div>
 
   <div class="stats" style="margin-bottom:20px">
