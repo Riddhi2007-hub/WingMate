@@ -1,4 +1,4 @@
-import { GOALS, INTERESTS, PERSONALITIES, PREF_KEYS, PURPOSES, SEATING, SLEEPING, TIERS, isOneOf, type Interest, type PrefKey } from '../src/ts/dashboard/options';
+import { GOALS, INTERESTS, PERSONALITIES, PREF_KEYS, PURPOSES, SEATING, TIERS, isOneOf, type Interest, type PrefKey } from '../src/ts/dashboard/options';
 import type { Prefs } from '../src/ts/dashboard/types';
 import { bad } from './http';
 
@@ -52,12 +52,11 @@ export function prefs(raw: unknown): Prefs {
   if (!isOneOf(PURPOSES, r.type)) throw bad('Choose a travel purpose.', 'type');
   if (!isOneOf(GOALS, r.why)) throw bad('Choose why you want to connect.', 'why');
   if (!isOneOf(PERSONALITIES, r.pers)) throw bad('Choose a personality type.', 'pers');
-  if (!isOneOf(SLEEPING, r.awake)) throw bad('Choose a sleeping preference.', 'awake');
   if (!isOneOf(SEATING, r.seat)) throw bad('Choose a seating preference.', 'seat');
   if (!Array.isArray(r.interests)) throw bad('Choose your interests.', 'interests');
   const interests = [...new Set(r.interests)].filter((i): i is Interest => isOneOf(INTERESTS, i));
   if (!interests.length) throw bad('Pick at least one interest.', 'interests');
-  return { type: r.type, why: r.why, pers: r.pers, interests, awake: r.awake, seat: r.seat };
+  return { type: r.type, why: r.why, pers: r.pers, interests, seat: r.seat };
 }
 
 export function criteria(raw: unknown): Record<PrefKey, boolean> {

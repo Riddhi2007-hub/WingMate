@@ -1,5 +1,5 @@
 import type { ChatWindow } from '../shared/stage';
-import type { Goal, Interest, Personality, PrefKey, Purpose, Seating, Sleeping, Tier } from './options';
+import type { Goal, Interest, Personality, PrefKey, Purpose, Seating, Tier } from './options';
 
 /** A passenger's saved preferences (your own, or a sample passenger's). */
 export interface Prefs {
@@ -7,7 +7,6 @@ export interface Prefs {
   why: Goal;
   pers: Personality;
   interests: Interest[];
-  awake: Sleeping;
   seat: Seating;
 }
 
@@ -82,4 +81,4 @@ export interface Ranked {
 }
 
 /** Filters on the Find page. An empty string means "Any". */
-export type Filters = Record<'type' | 'why' | 'pers' | 'awake' | 'seat', string>;
+export type Filters = Record<'type' | 'why' | 'pers' | 'seat', string>;

@@ -12,7 +12,6 @@ const FILTER_SELECTS: Record<FilterKey, string> = {
   type: '#fType',
   why: '#fWhy',
   pers: '#fPers',
-  awake: '#fAwake',
   seat: '#fSeat',
 };
 
@@ -50,8 +49,6 @@ export function renderFind(): void {
     for (const key of FILTER_KEYS) {
       const wanted = filters[key];
       if (!wanted || p[key] === wanted) continue;
-      // People with no sleeping preference are shown whichever sleeping filter is picked.
-      if (key === 'awake' && p.awake === 'No preference') continue;
       return false;
     }
     if (interestFilter.length && !interestFilter.some((i) => p.interests.includes(i))) return false;
@@ -83,7 +80,6 @@ export function renderFind(): void {
       <div class="facts">
         <span class="${s.hit.why ? 'yes' : ''}">Goal: <b>${esc(GOAL_LABEL[p.why])}</b></span>
         <span class="${s.hit.pers ? 'yes' : ''}">Personality: <b>${esc(p.pers)}</b></span>
-        <span class="${s.hit.awake ? 'yes' : ''}">Sleeping: <b>${esc(p.awake)}</b></span>
         <span class="${s.hit.seat ? 'yes' : ''}">Seating: <b>${esc(p.seat)}</b></span>
       </div>
       <div class="mate-actions">${connectButton(p.id)}</div>
@@ -117,7 +113,7 @@ export function initFind(): void {
 
   $('#usePrefs').addEventListener('click', () => {
     const { prefs } = state;
-    state.filters = { type: prefs.type, why: prefs.why, pers: prefs.pers, awake: prefs.awake, seat: prefs.seat };
+    state.filters = { type: prefs.type, why: prefs.why, pers: prefs.pers, seat: prefs.seat };
     state.interestFilter = [...prefs.interests];
     renderFind();
     toast('Filters set to your saved preferences');

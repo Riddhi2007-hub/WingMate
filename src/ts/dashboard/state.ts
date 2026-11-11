@@ -13,11 +13,10 @@ export const DEFAULT_PREFS: Prefs = {
   why: 'travel',
   pers: 'Ambivert',
   interests: ['Food & dining', 'Photography', 'Culture & museums'],
-  awake: 'No preference',
   seat: 'Window',
 };
 
-export const emptyFilters = (): Filters => ({ type: '', why: '', pers: '', awake: '', seat: '' });
+export const emptyFilters = (): Filters => ({ type: '', why: '', pers: '', seat: '' });
 
 export interface AppState {
   /** Saved preferences. */
@@ -63,7 +62,7 @@ export const state: AppState = {
   windows: {},
   chats: {},
   unread: {},
-  criteria: { type: true, why: true, pers: true, interests: true, awake: true, seat: true },
+  criteria: { type: true, why: true, pers: true, interests: true, seat: true },
   user: { first: '', last: '', email: '', bio: '' },
   flyer: null,
   saveData: true,

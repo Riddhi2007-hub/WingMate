@@ -21,9 +21,6 @@ export function score(person: Person, me: Prefs): MatchDetail {
     } else if (key === 'pers') {
       if (person.pers === me.pers) fraction = 1;
       else if (person.pers === 'Ambivert' || me.pers === 'Ambivert') fraction = 0.5;
-    } else if (key === 'awake') {
-      const open = person.awake === 'No preference' || me.awake === 'No preference';
-      fraction = person.awake === me.awake || open ? 1 : 0;
     } else {
       fraction = person[key] === me[key] ? 1 : 0;
     }

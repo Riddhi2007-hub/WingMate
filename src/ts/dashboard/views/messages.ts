@@ -5,6 +5,7 @@ import { closesIn, stageLabel } from '../flight';
 import { stageOf } from '../../shared/stage';
 import { nowMs, state } from '../state';
 import { save, sync } from '../sync';
+import { commonStripHTML, destinationsFor, planCardHTML, planPreview } from './plan';
 import { avatar, connectedPeople, fmtTime, flightTags, toast, updateNavDot } from '../ui';
 
 /** Clears the unread count for a chat and tells the server. */
@@ -49,7 +50,7 @@ export function renderMessages(): void {
       const thread = state.chats[p.id] ?? [];
       const last = thread[thread.length - 1];
       const unread = state.unread[p.id];
-      return `<button class="conv ${p.id === state.activeChat ? 'active' : ''}" data-chat="${esc(p.id)}">${avatar(p)}<span class="nm"><b>${esc(p.name)}</b><span>${last ? esc(last.text) : 'Say hello'}</span>${p.flights.length ? `<small class="cflight">&#9992; ${esc(p.flights.map((f) => f.number).join(', '))}</small>` : ''}</span>${unread ? `<span class="ub">${unread}</span>` : ''}</button>`;
+      return `<button class="conv ${p.id === state.activeChat ? 'active' : ''}" data-chat="${esc(p.id)}">${avatar(p)}<span class="nm"><b>${esc(p.name)}</b><span>${last ? esc(planPreview(last.text) ?? last.text) : 'Say hello'}</span>${p.flights.length ? `<small class="cflight">&#9992; ${esc(p.flights.map((f) => f.number).join(', '))}</small>` : ''}</span>${unread ? `<span class="ub">${unread}</span>` : ''}</button>`;
     })
     .join('');
   const requests = requestsHTML();
@@ -77,12 +78,15 @@ export function renderMessages(): void {
   else banner = `<div class="banner warn">You have landed. This chat closes in ${closesIn(window) ?? '0h 0m'} (48 hours after landing).</div>`;
 
   const bubbles = (state.chats[person.id] ?? [])
-    .map((m) => `<div class="bub ${m.from}">${esc(m.text)}<small>${fmtTime(m.t)}</small></div>`)
+    .map((m) => {
+      const card = planCardHTML(m.text, m.from, person.id);
+      return card ? `<div class="bub ${m.from} plan">${card}<small>${fmtTime(m.t)}</small></div>` : `<div class="bub ${m.from}">${esc(m.text)}<small>${fmtTime(m.t)}</small></div>`;
+    })
     .join('');
 
   thread.innerHTML = `
-    <div class="th-head">${avatar(person)}<div class="nm"><b>${esc(person.name)}</b><span>${esc(stageLabel(closed ? 'closed' : stage))}</span>${flightTags(person)}</div><span class="th-tools"><button class="btn sm ghost" data-block="${esc(person.id)}" type="button">Block</button> <button class="btn sm ghost" data-report="${esc(person.id)}" type="button">Report</button></span></div>
-    ${banner}
+    <div class="th-head">${avatar(person)}<div class="nm"><b>${esc(person.name)}</b><span>${esc(stageLabel(closed ? 'closed' : stage))}</span>${flightTags(person)}</div><span class="th-tools">${!closed && destinationsFor(person).length ? `<button class="btn sm" data-plan-open="${esc(person.id)}" type="button">Plan together</button> ` : ''}<button class="btn sm ghost" data-block="${esc(person.id)}" type="button">Block</button> <button class="btn sm ghost" data-report="${esc(person.id)}" type="button">Report</button></span></div>
+    <div class="banners">${banner}${commonStripHTML(person)}</div>
     <div class="bubbles" id="bubbles" aria-live="polite">${bubbles}</div>
     <form class="composer" id="composer"><input type="text" id="msgInput" maxlength="1000" placeholder="${closed ? 'This chat is closed' : 'Write a message'}" ${closed ? 'disabled' : ''} aria-label="Message" autocomplete="off"><button class="btn" ${closed ? 'disabled' : ''}>Send</button></form>`;
   const scroller = $('#bubbles');

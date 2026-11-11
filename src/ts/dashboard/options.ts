@@ -36,28 +36,23 @@ export const GOAL_LABEL: Record<Goal, string> = {
 export const PERSONALITIES = ['Extrovert', 'Introvert', 'Ambivert'] as const;
 export type Personality = (typeof PERSONALITIES)[number];
 
-/** Sleeping preference */
-export const SLEEPING = ['Mostly awake', 'Mostly asleep', 'No preference'] as const;
-export type Sleeping = (typeof SLEEPING)[number];
-
 /** Seating preference */
 export const SEATING = ['Window', 'Middle', 'Aisle'] as const;
 export type Seating = (typeof SEATING)[number];
 
-/** The six saved preferences, in the order they appear on the preferences page. */
-export const PREF_KEYS = ['type', 'why', 'pers', 'interests', 'awake', 'seat'] as const;
+/** The five saved preferences, in the order they appear on the preferences page. */
+export const PREF_KEYS = ['type', 'why', 'pers', 'interests', 'seat'] as const;
 export type PrefKey = (typeof PREF_KEYS)[number];
 
 /** Preferences that are a single choice (everything except interests): used by the Find filters. */
 export type FilterKey = Exclude<PrefKey, 'interests'>;
-export const FILTER_KEYS: readonly FilterKey[] = ['type', 'why', 'pers', 'awake', 'seat'];
+export const FILTER_KEYS: readonly FilterKey[] = ['type', 'why', 'pers', 'seat'];
 
 export const PREF_LABEL: Record<PrefKey, string> = {
   type: 'Travel purpose',
   why: 'Connection goal',
   pers: 'Personality type',
   interests: 'Interests',
-  awake: 'Sleeping preference',
   seat: 'Seating preference',
 };
 
@@ -67,7 +62,6 @@ export const WEIGHTS: Record<PrefKey, number> = {
   why: 25,
   pers: 10,
   interests: 30,
-  awake: 10,
   seat: 10,
 };
 

@@ -8,7 +8,6 @@ import {
   PERSONALITIES,
   PURPOSES,
   SEATING,
-  SLEEPING,
   isOneOf,
   type Interest,
   type PrefKey,
@@ -43,7 +42,6 @@ export function renderPrefs(): void {
   $('#optWhy').innerHTML = optionsHTML('why', GOALS, (v) => (isOneOf(GOALS, v) ? GOAL_LABEL[v] : v));
   $('#optPers').innerHTML = optionsHTML('pers', PERSONALITIES);
   $('#optInt').innerHTML = optionsHTML('interests', INTERESTS);
-  $('#optAwake').innerHTML = optionsHTML('awake', SLEEPING);
   $('#optSeat').innerHTML = optionsHTML('seat', SEATING);
   updateSaveBar();
 }
@@ -67,9 +65,6 @@ function applyChoice(key: string, value: string): void {
       break;
     case 'pers':
       if (isOneOf(PERSONALITIES, value)) draft.pers = value;
-      break;
-    case 'awake':
-      if (isOneOf(SLEEPING, value)) draft.awake = value;
       break;
     case 'seat':
       if (isOneOf(SEATING, value)) draft.seat = value;

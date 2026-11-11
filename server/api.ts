@@ -19,7 +19,6 @@ const userPrefs = (u: UserRow): Prefs => ({
   why: u.p_why as Prefs['why'],
   pers: u.p_pers as Prefs['pers'],
   interests: JSON.parse(u.p_interests) as Prefs['interests'],
-  awake: u.p_awake as Prefs['awake'],
   seat: u.p_seat as Prefs['seat'],
 });
 
@@ -78,7 +77,7 @@ function meDto(u: UserRow) {
     bio: u.bio,
     visible: !!u.visible,
     prefs: userPrefs(u),
-    criteria: JSON.parse(u.criteria) as Record<PrefKey, boolean>,
+    criteria: Object.fromEntries(PREF_KEYS.map((k) => [k, (JSON.parse(u.criteria) as Partial<Record<PrefKey, boolean>>)[k] !== false])) as Record<PrefKey, boolean>,
     saveData: !!u.save_data,
     flyer: u.flyer_num !== null ? { num: u.flyer_num, tier: u.flyer_tier ?? 'Green' } : null,
     lastFlightAt: u.last_flight_at,
@@ -218,7 +217,7 @@ const requireUser = (ctx: Ctx): UserRow => {
 
 const ok = (extra: Record<string, unknown> = {}, headers: Record<string, string | string[]> = {}): Response => json(200, { ok: true, ...extra }, headers);
 
-const newUserPrefs: Prefs = { type: 'Leisure', why: 'travel', pers: 'Ambivert', interests: ['Food & dining', 'Photography', 'Culture & museums'], awake: 'No preference', seat: 'Window' };
+const newUserPrefs: Prefs = { type: 'Leisure', why: 'travel', pers: 'Ambivert', interests: ['Food & dining', 'Photography', 'Culture & museums'], seat: 'Window' };
 const defaultCriteria = (): Record<PrefKey, boolean> => Object.fromEntries(PREF_KEYS.map((k) => [k, true])) as Record<PrefKey, boolean>;
 
 const emailOf = (value: unknown): string => (typeof value === 'string' ? value.trim().toLowerCase() : '');
@@ -277,7 +276,7 @@ const routes: Record<string, Handler> = {
         await db.run(
           `INSERT INTO users (email, pw_hash, first, last, phone, dob, created_at, p_type, p_why, p_pers, p_interests, p_awake, p_seat, criteria, last_flight_at)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-          mail, hash, first, last, phone, dob, now, newUserPrefs.type, newUserPrefs.why, newUserPrefs.pers, JSON.stringify(newUserPrefs.interests), newUserPrefs.awake, newUserPrefs.seat, JSON.stringify(defaultCriteria()), now,
+          mail, hash, first, last, phone, dob, now, newUserPrefs.type, newUserPrefs.why, newUserPrefs.pers, JSON.stringify(newUserPrefs.interests), 'No preference', newUserPrefs.seat, JSON.stringify(defaultCriteria()), now,
         )
       ).id;
     } catch (error) {
@@ -359,7 +358,7 @@ const routes: Record<string, Handler> = {
   async 'PUT /api/prefs'(ctx) {
     const me = requireUser(ctx);
     const p = v.prefs((await readJson(ctx.request)).prefs);
-    await ctx.db.run('UPDATE users SET p_type=?, p_why=?, p_pers=?, p_interests=?, p_awake=?, p_seat=? WHERE id=?', p.type, p.why, p.pers, JSON.stringify(p.interests), p.awake, p.seat, me.id);
+    await ctx.db.run('UPDATE users SET p_type=?, p_why=?, p_pers=?, p_interests=?, p_seat=? WHERE id=?', p.type, p.why, p.pers, JSON.stringify(p.interests), p.seat, me.id);
     return ok();
   },
 

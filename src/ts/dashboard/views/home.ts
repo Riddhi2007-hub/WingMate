@@ -1,6 +1,7 @@
 import { $, esc } from '../../shared/dom';
 import { TRIPS, getPeople } from '../data';
 import { destinationFor } from '../destinations';
+import { sceneSVG } from '../scenes';
 import { ranked } from '../matching';
 import { GOAL_LABEL } from '../options';
 import { state } from '../state';
@@ -10,7 +11,7 @@ import { BRAND } from '../../shared/brand';
 
 /** How many of the six preferences have a value. */
 function filledCount(p: Prefs): number {
-  return [p.type, p.why, p.pers, p.interests.length ? 1 : 0, p.awake, p.seat].filter(Boolean).length;
+  return [p.type, p.why, p.pers, p.interests.length ? 1 : 0, p.seat].filter(Boolean).length;
 }
 
 export function renderHome(): void {
@@ -21,7 +22,7 @@ export function renderHome(): void {
   const all = ranked();
   $('#statMatches').textContent = String(visible ? all.filter((x) => x.s.pct >= 70).length : 0);
   $('#statConns').textContent = String(Object.values(state.conn).filter((v) => v === 'connected').length);
-  $('#statPrefs').textContent = `${filledCount(prefs)}/6`;
+  $('#statPrefs').textContent = `${filledCount(prefs)}/5`;
 
   $('#topMatches').innerHTML = !state.flight
     ? `<div class="empty"><h3>Add your flight first</h3><p style="margin-bottom:14px">Tell us which flight you are on and you will see the other ${BRAND.guests} who have added it.</p><button class="btn" data-act="addFlight">Add my flight</button></div>`
@@ -42,7 +43,6 @@ export function renderHome(): void {
     ['Connection goal', GOAL_LABEL[prefs.why]],
     ['Personality type', prefs.pers],
     ['Interests', prefs.interests.length ? prefs.interests.join(', ') : 'None selected'],
-    ['Sleeping preference', prefs.awake],
     ['Seating preference', prefs.seat],
   ];
   $('#prefSummary').innerHTML = rows
@@ -62,15 +62,19 @@ function renderSuggestions(): void {
     // ideas for the place you are flying to, when we have them; otherwise the general ones
     const dest = destinationFor(state.flight?.to);
     title.textContent = dest ? `Trip ideas for ${dest.city}` : 'Suggested trip packages';
-    const best = (dest?.trips ?? TRIPS).map((trip) => ({ trip, n: trip.tags.filter((tag) => prefs.interests.includes(tag)).length }))
-      .sort((a, b) => b.n - a.n)
-      .slice(0, 3);
-    body.innerHTML = best
-      .map(({ trip }) => {
+    const ranked = (dest?.trips ?? TRIPS).map((trip, index) => ({ trip, index, n: trip.tags.filter((tag) => prefs.interests.includes(tag)).length })).sort((a, b) => b.n - a.n || a.index - b.index);
+    body.innerHTML = ranked
+      .slice(0, dest ? 4 : 3)
+      .map(({ trip, index, n }, rank) => {
         const tags = trip.tags
           .map((tag) => `<span class="chip ${prefs.interests.includes(tag) ? 'soft' : ''}">${esc(tag)}</span>`)
           .join('');
-        return `<div class="trip"><div class="sw"><span>${trip.days}<small>days</small></span></div><div class="bd"><div><h3>${esc(trip.name)}</h3><p>${esc(trip.text)}</p></div><div class="chips">${tags}</div><div><button class="btn ghost sm" data-act="tripmates" data-tag="${esc(trip.tags[0])}">See mates who like this</button></div></div></div>`;
+        const stops: string[] = 'stops' in trip && Array.isArray(trip.stops) ? (trip.stops as string[]) : [];
+        if (!dest || !stops.length) {
+          return `<div class="trip"><div class="sw"><span>${trip.days}<small>days</small></span></div><div class="bd"><div><h3>${esc(trip.name)}</h3><p>${esc(trip.text)}</p></div><div class="chips">${tags}</div><div><button class="btn ghost sm" data-act="tripmates" data-tag="${esc(trip.tags[0])}">See mates who like this</button></div></div></div>`;
+        }
+        const best = rank === 0 && n > 0 ? '<span class="best">Best match for you</span>' : '';
+        return `<div class="trip has-pic"><div class="pic">${sceneSVG(dest.key, index, `${trip.name} in ${dest.city}`)}<span class="days">${trip.days} day${trip.days === 1 ? '' : 's'}</span></div><div class="bd"><div><h3>${esc(trip.name)} ${best}</h3><p>${esc(trip.text)}</p></div><div class="chips">${tags}</div><details class="plan"><summary>See the plan (${stops.length} places)</summary><ol class="stops">${stops.map((x) => `<li>${esc(x)}</li>`).join('')}</ol></details><div class="trip-actions"><button class="btn ghost sm" data-act="tripmates" data-tag="${esc(trip.tags[0])}">See mates who like this</button><button class="btn sm" data-act="planChat" data-dest="${esc(dest.key)}" data-i="${index}">Discuss in chat</button></div></div></div>`;
       })
       .join('');
     if (dest) body.innerHTML += `<p class="hint" style="margin-top:2px">Ideas for your trip, not bookable packages. Check details before you go.</p>`;
