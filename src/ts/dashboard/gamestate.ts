@@ -8,7 +8,11 @@ export interface HangmanView {
   wrong: number;
   max: number;
   round: number;
-  result: '' | 'won' | 'lost';
+  result: '' | 'won' | 'lost' | 'timeout';
+  /** When the round's clock runs out (server time, ms). */
+  endsAt: number;
+  limit: number;
+  scores: { me: number; them: number };
 }
 
 export interface StrokeDto {
@@ -24,7 +28,12 @@ export interface ScribbleView {
   strokes: StrokeDto[];
   guesses: Array<{ mine: boolean; text: string; ok: boolean }>;
   round: number;
-  result: '' | 'won' | 'revealed';
+  result: '' | 'won' | 'revealed' | 'timeout';
+  endsAt: number;
+  limit: number;
+  scores: { me: number; them: number };
+  /** For the guesser: one entry per letter, '' while hidden (a letter or two is given away as time runs out). */
+  hint: string[] | null;
 }
 
 export interface GameDto {

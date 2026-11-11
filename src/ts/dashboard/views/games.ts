@@ -1,20 +1,23 @@
 /**
  * Games: practise on your own, or play Hangman and Scribble with a connected travel mate. Playing together always
- * starts with an invitation; the game begins only when the other person accepts it. While a game is open on this
- * tab the page asks the server for updates every 1.5 seconds.
+ * starts with an invitation; the game begins only when the other person accepts it. Each round has a clock (90 s for
+ * Hangman, 80 s for Scribble). Scribble is laid out like the real game: players and scores on the left, the canvas
+ * in the middle, guesses on the right, and the word as blanks that fill in a little as time runs out.
+ * While a game is open on this tab the page asks the server for updates every 1.5 seconds.
  */
 import { $, $$, closest, esc } from '../../shared/dom';
 import { ApiError, api } from '../../shared/api';
 import { findPerson } from '../data';
-import { HANGMAN_PARTS, HANGMAN_WORDS, SCRIBBLE_COLORS, SCRIBBLE_WORDS } from '../data';
+import { HANGMAN_PARTS, HANGMAN_WORDS, SCRIBBLE_WORDS } from '../data';
 import { getGames, onGames, putGame, setGames, type GameDto, type StrokeDto } from '../gamestate';
-import { state } from '../state';
+import { nowMs, state } from '../state';
 import { connectedPeople, toast } from '../ui';
 
 const pick = <T>(list: readonly T[]): T => list[Math.floor(Math.random() * list.length)] as T;
 const nameOf = (id: string): string => (findPerson(id)?.name ?? 'Your travel mate').split(' ')[0] ?? 'Your travel mate';
 const GAME_NAME = { hangman: 'Hangman', scribble: 'Scribble' } as const;
 const isOpen = (g: GameDto): boolean => g.status === 'invited' || g.status === 'active';
+const PRACTICE_LIMIT = { hang: 90_000, scribble: 80_000 } as const;
 
 /** The live game shown on the boards (null = practising alone). */
 let currentId: number | null = null;
@@ -33,6 +36,7 @@ async function send<T extends { game?: GameDto }>(path: string, body: unknown): 
   } catch (error: unknown) {
     toast(error instanceof ApiError ? error.message : 'Something went wrong. Try again.');
     if (error instanceof ApiError && error.status === 409) void refreshGames();
+    if (error instanceof ApiError && error.status === 400) void refreshGames();
     return null;
   }
 }
@@ -51,17 +55,42 @@ const move = (m: Record<string, unknown>): void => {
   if (g) void send('/api/games/move', { id: g.id, move: m });
 };
 
+/* ============================== the clock ============================== */
+
+function paintClock(el: HTMLElement, label: HTMLElement, endsAt: number | null, idle = 0): number {
+  if (endsAt === 0) {
+    // not started yet: show the full time
+    label.textContent = String(Math.round(idle / 1000));
+    el.classList.remove('off', 'low');
+    return idle;
+  }
+  if (endsAt === null) {
+    el.classList.add('off');
+    el.classList.remove('low');
+    return 0;
+  }
+  const left = Math.max(0, Math.ceil((endsAt - nowMs()) / 1000));
+  label.textContent = String(left);
+  el.classList.remove('off');
+  el.classList.toggle('low', left > 0 && left <= 10);
+  return left;
+}
+
 /* ============================== Hangman ============================== */
 
 const MAX_WRONG = 6;
 let word = '';
 let guessed: string[] = [];
 let wrong = 0;
+let hangEndsAt = 0;
+let hangTimedOut = false;
 
 function newHangman(): void {
   word = pick(HANGMAN_WORDS);
   guessed = [];
   wrong = 0;
+  hangEndsAt = 0; // the practice clock starts with the first guess
+  hangTimedOut = false;
   renderHangman();
 }
 
@@ -82,34 +111,44 @@ function renderHangman(): void {
   if (g?.hangman) {
     const h = g.hangman;
     const them = nameOf(g.with);
+    $('#hangScore').innerHTML = `Round ${h.round} · You <b>${h.scores.me}</b> · ${esc(them)} <b>${h.scores.them}</b>`;
     $('#hangParts').innerHTML = HANGMAN_PARTS.slice(0, h.wrong).join('');
     $('#hangWord').innerHTML = h.mask.map((c) => `<span>${esc(c)}</span>`).join('');
     const left = `Wrong guesses left: ${h.max - h.wrong}`;
-    $('#hangInfo').textContent = h.setterIsMe ? `${them} is guessing your word ${h.word ?? ''}. ${left}` : `Guess ${them}’s word. ${left}`;
+    $('#hangInfo').textContent = h.setterIsMe ? `${them} is guessing your word ${h.word ?? ''}. ${left}` : `Guess ${them}’s word before the clock runs out. ${left}`;
     const result = $('#hangResult');
-    const won = h.result === 'won';
-    result.className = 'result ' + (h.result ? (won === !h.setterIsMe ? 'win' : 'lose') : '');
-    result.textContent = !h.result ? '' : won ? (h.setterIsMe ? `${them} got it!` : 'You got it. Well done!') : h.setterIsMe ? `${them} ran out of guesses. You win this round!` : `Out of guesses. The word was ${h.word ?? ''}.`;
+    const iWon = (h.result === 'won') !== h.setterIsMe;
+    result.className = 'result ' + (h.result ? (iWon ? 'win' : 'lose') : '');
+    result.textContent = !h.result
+      ? ''
+      : h.result === 'won'
+        ? h.setterIsMe ? `${them} got it!` : 'You got it. Well done!'
+        : h.result === 'timeout'
+          ? `Time’s up! The word was ${h.word ?? ''}.`
+          : h.setterIsMe ? `${them} ran out of guesses. You win this round!` : `Out of guesses. The word was ${h.word ?? ''}.`;
     drawKeys(h.guessed, (c) => (h.word ? h.word.includes(c) : h.mask.includes(c)), h.setterIsMe || !!h.result);
     const button = $('#hangNew');
     button.hidden = !h.result;
     button.textContent = 'Play again (swap roles)';
     // next round: whoever just guessed sets the word
     againWord.hidden = !h.result || h.setterIsMe;
+    tickClocks();
     return;
   }
   againWord.hidden = true;
+  $('#hangScore').textContent = 'Practice';
   $('#hangNew').hidden = false;
   $('#hangNew').textContent = 'New word';
   const won = [...word].every((c) => guessed.includes(c));
-  const lost = wrong >= MAX_WRONG;
-  $('#hangParts').innerHTML = HANGMAN_PARTS.slice(0, wrong).join('');
+  const lost = wrong >= MAX_WRONG || hangTimedOut;
+  $('#hangParts').innerHTML = HANGMAN_PARTS.slice(0, hangTimedOut ? MAX_WRONG : wrong).join('');
   $('#hangWord').innerHTML = [...word].map((c) => `<span>${guessed.includes(c) || lost ? c : ''}</span>`).join('');
   $('#hangInfo').textContent = `Practice round. Wrong guesses left: ${MAX_WRONG - wrong}`;
   const result = $('#hangResult');
   result.className = 'result ' + (won ? 'win' : lost ? 'lose' : '');
-  result.textContent = won ? 'You got it. Well done!' : lost ? 'Out of guesses. Try another word.' : '';
+  result.textContent = won ? 'You got it. Well done!' : hangTimedOut ? `Time’s up! The word was ${word}.` : lost ? 'Out of guesses. Try another word.' : '';
   drawKeys(guessed, (c) => word.includes(c), won || lost);
+  tickClocks();
 }
 
 /* ============================== Scribble ============================== */
@@ -120,9 +159,22 @@ interface Stroke {
   pts: Array<[number, number]>;
 }
 
+/** A palette like the real game's: two rows of bright and dark colours. */
+const PALETTE = [
+  '#ffffff', '#c1c1c1', '#ef130b', '#ff7100', '#ffe400', '#00cc00', '#00b2ff', '#231fd3', '#a300ba', '#d37caa', '#a0522d',
+  '#000000', '#4c4c4c', '#740b07', '#c23800', '#e8a200', '#005510', '#00569e', '#0e0865', '#550069', '#a75574', '#63300d',
+];
+const SIZES = [4, 10, 20, 36];
+const PAD_BG = '#ffffff';
+
 let strokes: Stroke[] = [];
 let drawing: Stroke | null = null;
-let brushColor: string = SCRIBBLE_COLORS[1]?.[0] ?? '#000000';
+let brushColor = '#000000';
+let brushSize = 10;
+let eraser = false;
+let practiceWord = '';
+let scrEndsAt = 0;
+let scrTimedOut = false;
 
 const fromDto = (s: StrokeDto): Stroke => {
   const pts: Array<[number, number]> = [];
@@ -137,7 +189,8 @@ function redrawPad(): void {
   const g = current();
   const list = g?.scribble ? g.scribble.strokes.map(fromDto) : strokes;
   const all = drawing && g ? [...list, drawing] : list;
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = PAD_BG;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
   for (const stroke of all) {
@@ -152,44 +205,90 @@ function redrawPad(): void {
 }
 
 function newScribble(): void {
-  $('#scrWordLine').textContent = `Your word to draw: ${pick(SCRIBBLE_WORDS)}`;
+  practiceWord = pick(SCRIBBLE_WORDS);
   strokes = [];
-  redrawPad();
+  scrEndsAt = 0; // the practice clock starts with the first line
+  scrTimedOut = false;
+  renderScribble();
+}
+
+/** The word line: blanks with the letter count for the guesser, the word itself for the drawer. */
+function wordLine(letters: string[] | null, plain: string | null): string {
+  if (plain !== null) return `<span class="plain">${esc(plain)}</span>`;
+  if (!letters) return '';
+  const count = letters.filter((c) => c !== ' ').length;
+  return `${letters.map((c) => (c === ' ' ? '<span class="gap"></span>' : `<span class="ch">${esc(c) || '&nbsp;'}</span>`)).join('')}<sup>${count}</sup>`;
 }
 
 function renderScribble(): void {
   const g = current();
-  const canDraw = !g || !!g.scribble?.drawerIsMe;
+  const s = g?.scribble;
+  const canDraw = !g || !!(s?.drawerIsMe && !s.result);
   $('#pad').classList.toggle('readonly', !canDraw);
-  $<HTMLElement>('#game-scribble .tools').hidden = !canDraw;
-  if (g?.scribble) {
-    const s = g.scribble;
+  $<HTMLElement>('#game-scribble .skr-tools').hidden = !canDraw;
+  const overlay = $('#scrOverlay');
+  const guessBox = $<HTMLInputElement>('#scrGuessInput');
+
+  if (g && s) {
     const them = nameOf(g.with);
-    const line = $('#scrWordLine');
-    if (s.result === 'won') line.textContent = s.drawerIsMe ? `${them} guessed it: ${s.word ?? ''}!` : `You got it: ${s.word ?? ''}!`;
-    else if (s.result === 'revealed') line.textContent = `The word was ${s.word ?? ''}.`;
-    else line.textContent = s.drawerIsMe ? `Draw: ${s.word ?? ''} (${them} is guessing)` : `Guess what ${them} is drawing (${s.length} letters)`;
-    $<HTMLFormElement>('#scrGuess').hidden = s.drawerIsMe || !!s.result;
-    $('#scrGuesses').innerHTML = s.guesses.map((x) => `<span class="${x.ok ? 'ok' : x.mine ? 'mine' : ''}">${x.ok ? '&#10003; ' : ''}${esc(x.text)}</span>`).join('');
-    $('#scrHint').textContent = s.drawerIsMe ? 'Draw the word without writing it. Every line you finish appears on their screen.' : 'Type a guess and press Enter. You can guess as often as you like.';
+    $('#scrRound').textContent = `Round ${s.round}`;
+    $('#scrWordLine').innerHTML = s.drawerIsMe ? wordLine(null, `Draw: ${s.word ?? ''}`) : s.result ? wordLine(null, s.word ?? '') : wordLine(s.hint ?? Array.from({ length: s.length }, () => ''), null);
+    const guessedIt = s.result === 'won';
+    $('#scrPlayers').innerHTML = [
+      { name: 'You', me: true, score: s.scores.me, drawer: s.drawerIsMe },
+      { name: them, me: false, score: s.scores.them, drawer: !s.drawerIsMe },
+    ]
+      .sort((a, b) => b.score - a.score)
+      .map((p, i) => `<div class="skr-p ${p.me ? 'me' : ''} ${guessedIt && !p.drawer ? 'got' : ''}"><span class="rk">#${i + 1}</span><span><b>${esc(p.me ? 'You' : p.name)}</b><small>${p.score} points</small></span><span class="ic" title="${p.drawer ? 'Drawing' : 'Guessing'}">${p.drawer ? '&#9999;&#65039;' : ''}</span></div>`)
+      .join('');
+    const lines = [`<div class="sys">${s.drawerIsMe ? 'You are drawing now.' : `${esc(them)} is drawing now.`}</div>`];
+    for (const x of s.guesses) {
+      const who = x.mine ? 'You' : them;
+      lines.push(x.ok ? `<div class="ok">${esc(who)} guessed the word!</div>` : `<div><b>${esc(who)}:</b> ${esc(x.text)}</div>`);
+    }
+    if (s.result === 'timeout') lines.push(`<div class="sys">Time’s up! The word was ${esc(s.word ?? '')}.</div>`);
+    if (s.result === 'revealed') lines.push(`<div class="sys">${esc(them)} gave up. The word was ${esc(s.word ?? '')}.</div>`);
+    const box = $('#scrGuesses');
+    box.innerHTML = lines.join('');
+    box.scrollTop = box.scrollHeight;
+    guessBox.disabled = s.drawerIsMe || !!s.result;
+    guessBox.placeholder = s.drawerIsMe ? 'You are drawing' : s.result ? 'Round over' : 'Type your guess here...';
+    overlay.hidden = !s.result;
+    if (s.result) {
+      const title = s.result === 'won' ? (s.drawerIsMe ? `${them} guessed it!` : 'You guessed it!') : s.result === 'timeout' ? 'Time’s up!' : 'Round over';
+      overlay.innerHTML = `<div>${esc(title)}<small>The word was ${esc(s.word ?? '')}. Scores: you ${s.scores.me}, ${esc(them)} ${s.scores.them}.</small></div>`;
+    }
+    $('#scrHint').textContent = s.drawerIsMe ? 'Draw the word without writing letters. Every line you finish appears on their screen.' : 'Type guesses on the right. Letters appear in the blanks as time runs out.';
     const button = $('#scrNew');
     button.hidden = !s.drawerIsMe && !s.result;
-    button.textContent = s.result ? 'Play again (swap roles)' : 'Reveal the word';
+    button.textContent = s.result ? 'Next round (swap roles)' : 'Give up';
   } else {
-    $<HTMLFormElement>('#scrGuess').hidden = true;
-    $('#scrGuesses').innerHTML = '';
-    $('#scrHint').textContent = 'Practice round: draw the word without writing it.';
+    $('#scrRound').textContent = 'Practice';
+    $('#scrWordLine').innerHTML = wordLine(null, `Draw: ${practiceWord}`);
+    $('#scrPlayers').innerHTML = `<div class="skr-p me"><span class="rk">#1</span><span><b>You</b><small>Practice</small></span><span class="ic">&#9999;&#65039;</span></div>`;
+    $('#scrGuesses').innerHTML = `<div class="sys">Practising on your own. Invite a travel mate above to play for real: they guess here.</div>`;
+    guessBox.disabled = true;
+    guessBox.placeholder = 'Guesses appear here in a real game';
+    overlay.hidden = !scrTimedOut;
+    if (scrTimedOut) overlay.innerHTML = `<div>Time’s up!<small>Press New word to draw again.</small></div>`;
+    $('#scrHint').textContent = 'Practice: draw the word before the clock runs out.';
     $('#scrNew').hidden = false;
     $('#scrNew').textContent = 'New word';
   }
+  tickClocks();
   redrawPad();
 }
 
+function paintTools(): void {
+  for (const b of $$<HTMLButtonElement>('#scrColors button')) b.setAttribute('aria-pressed', String(!eraser && b.dataset.color === brushColor));
+  for (const b of $$<HTMLButtonElement>('#scrSizes button')) b.setAttribute('aria-pressed', String(Number(b.dataset.size) === brushSize));
+  $('#scrEraser').setAttribute('aria-pressed', String(eraser));
+}
+
 function setupPad(): void {
-  $('#scrColors').innerHTML = SCRIBBLE_COLORS.map(
-    ([hex, name]) =>
-      `<button class="sw-btn" style="background:${hex}" data-color="${hex}" aria-label="${esc(name)}" aria-pressed="${hex === brushColor}"></button>`,
-  ).join('');
+  $('#scrColors').innerHTML = PALETTE.map((hex) => `<button type="button" style="background:${hex}" data-color="${hex}" aria-label="Colour ${hex}"></button>`).join('');
+  $('#scrSizes').innerHTML = SIZES.map((n) => `<button type="button" data-size="${n}" aria-label="Brush size ${n}"><i style="width:${Math.max(4, n / 1.6)}px;height:${Math.max(4, n / 1.6)}px"></i></button>`).join('');
+  paintTools();
 
   const canvas = $<HTMLCanvasElement>('#pad');
   const position = (e: PointerEvent): [number, number] => {
@@ -198,14 +297,18 @@ function setupPad(): void {
   };
   const canDraw = (): boolean => {
     const g = current();
-    return !g || !!(g.scribble?.drawerIsMe && !g.scribble.result);
+    if (!g) return !scrTimedOut;
+    return !!(g.scribble?.drawerIsMe && !g.scribble.result);
   };
 
   canvas.addEventListener('pointerdown', (e) => {
     if (!canDraw()) return;
     canvas.setPointerCapture(e.pointerId);
-    drawing = { color: brushColor, size: Number($<HTMLInputElement>('#scrSize').value) * 1.6, pts: [position(e)] };
-    if (!current()) strokes.push(drawing);
+    drawing = { color: eraser ? PAD_BG : brushColor, size: eraser ? Math.max(brushSize, 20) : brushSize, pts: [position(e)] };
+    if (!current()) {
+      strokes.push(drawing);
+      if (!scrEndsAt) scrEndsAt = nowMs() + PRACTICE_LIMIT.scribble;
+    }
     redrawPad();
   });
   canvas.addEventListener('pointermove', (e) => {
@@ -236,7 +339,18 @@ function setupPad(): void {
     const button = closest(event, '[data-color]');
     if (!button?.dataset.color) return;
     brushColor = button.dataset.color;
-    for (const b of $$('#scrColors .sw-btn')) b.setAttribute('aria-pressed', String(b === button));
+    eraser = false;
+    paintTools();
+  });
+  $('#scrSizes').addEventListener('click', (event) => {
+    const button = closest(event, '[data-size]');
+    if (!button?.dataset.size) return;
+    brushSize = Number(button.dataset.size);
+    paintTools();
+  });
+  $('#scrEraser').addEventListener('click', () => {
+    eraser = !eraser;
+    paintTools();
   });
   $('#scrUndo').addEventListener('click', () => {
     if (current()) return move({ undo: true });
@@ -257,10 +371,47 @@ function setupPad(): void {
     event.preventDefault();
     const box = $<HTMLInputElement>('#scrGuessInput');
     const text = box.value.trim();
-    if (!text) return;
+    if (!text || box.disabled) return;
     box.value = '';
     move({ guess: text });
   });
+}
+
+/** Updates both clocks every quarter second. When a live round's time is up, asks the server for the result. */
+let askedAt = 0;
+function tickClocks(): void {
+  const g = current();
+  const hangLive = g?.hangman;
+  const scrLive = g?.scribble;
+  // Hangman
+  if (hangLive) {
+    const left = paintClock($('#hangClock'), $('#hangTime'), hangLive.result ? null : hangLive.endsAt);
+    if (!hangLive.result && left === 0 && Date.now() - askedAt > 2500) {
+      askedAt = Date.now();
+      void refreshGames();
+    }
+  } else {
+    const done = [...word].every((c) => guessed.includes(c)) || wrong >= MAX_WRONG || hangTimedOut;
+    const left = paintClock($('#hangClock'), $('#hangTime'), done ? null : hangEndsAt, PRACTICE_LIMIT.hang);
+    if (!done && hangEndsAt && left === 0) {
+      hangTimedOut = true;
+      renderHangman();
+    }
+  }
+  // Scribble
+  if (scrLive) {
+    const left = paintClock($('#scrClock'), $('#scrTime'), scrLive.result ? null : scrLive.endsAt);
+    if (!scrLive.result && left === 0 && Date.now() - askedAt > 2500) {
+      askedAt = Date.now();
+      void refreshGames();
+    }
+  } else {
+    const left = paintClock($('#scrClock'), $('#scrTime'), scrTimedOut ? null : scrEndsAt, PRACTICE_LIMIT.scribble);
+    if (!scrTimedOut && scrEndsAt && left === 0) {
+      scrTimedOut = true;
+      renderScribble();
+    }
+  }
 }
 
 /* ============================== invitations and the list of games ============================== */
@@ -296,7 +447,7 @@ function renderCenter(): void {
     : !free.length
       ? ''
       : `<form class="gc-form" id="gcForm"><div class="fld"><label class="lbl" for="gcWho">Invite</label><select id="gcWho">${free.map((p) => `<option value="${esc(p.id)}">${esc(p.name)}</option>`).join('')}</select></div><div class="fld"><label class="lbl" for="gcKind">Game</label><select id="gcKind"><option value="hangman"${tab === 'hang' ? ' selected' : ''}>Hangman</option><option value="scribble"${tab === 'scribble' ? ' selected' : ''}>Scribble</option></select></div><div class="fld word" id="gcWordFld"${tab === 'hang' ? '' : ' hidden'}><label class="lbl" for="gcWord">Secret word (optional)</label><input type="text" id="gcWord" maxlength="14" placeholder="Random if empty"></div><button class="btn" type="submit">Send invite</button></form>`;
-  $('#gameCenter').innerHTML = `<div class="card-head" style="margin-bottom:0"><div><h2>Play with a travel mate</h2><p class="muted small">They get an invite first, and the game starts only if they accept.</p></div></div>${rows.join('')}${form}`;
+  $('#gameCenter').innerHTML = `<div class="card-head" style="margin-bottom:0"><div><h2>Play with a travel mate</h2><p class="muted small">They get an invite first, and the game starts only if they accept. Each round is against the clock.</p></div></div>${rows.join('')}${form}`;
 }
 
 function renderLiveBar(): void {
@@ -373,7 +524,7 @@ export function initGames(): void {
   document.addEventListener('change', (event) => {
     if ((event.target as HTMLElement).id === 'gcKind') {
       const fld = document.getElementById('gcWordFld');
-      if (fld) fld.hidden = ($<HTMLSelectElement>('#gcKind').value !== 'hangman');
+      if (fld) fld.hidden = $<HTMLSelectElement>('#gcKind').value !== 'hangman';
     }
   });
 
@@ -385,7 +536,8 @@ export function initGames(): void {
         move({ letter });
         return;
       }
-      if (!guessed.includes(letter)) {
+      if (!hangEndsAt) hangEndsAt = nowMs() + PRACTICE_LIMIT.hang;
+      if (!guessed.includes(letter) && !hangTimedOut) {
         guessed.push(letter);
         if (!word.includes(letter)) wrong++;
         renderHangman();
@@ -445,4 +597,7 @@ export function initGames(): void {
   window.setInterval(() => {
     if (state.currentView === 'games' && !document.hidden && getGames().some(isOpen)) void refreshGames();
   }, 1500);
+  window.setInterval(() => {
+    if (state.currentView === 'games' && !document.hidden) tickClocks();
+  }, 250);
 }

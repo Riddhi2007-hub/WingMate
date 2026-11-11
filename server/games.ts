@@ -27,6 +27,8 @@ export interface GameRow {
 const HANGMAN_WORDS = ['AIRPORT', 'SUITCASE', 'BOARDING', 'JETLAG', 'PASSPORT', 'LAYOVER', 'SOUVENIR', 'TURBULENCE', 'ITINERARY', 'WINDOW', 'LUGGAGE', 'DEPARTURE', 'RUNWAY', 'TICKET', 'BEACH', 'TEMPLE'];
 const SCRIBBLE_WORDS = ['Suitcase', 'Airplane', 'Sunset', 'Noodles', 'Passport', 'Mountain', 'Umbrella', 'Temple', 'Taxi', 'Skyline', 'Camera', 'Beach', 'Pizza', 'Island', 'Bridge', 'Rainbow', 'Elephant', 'Volcano'];
 const MAX_WRONG = 6;
+/** Time per round, like the real game: a short clock keeps it lively. */
+export const LIMIT = { hangman: 90_000, scribble: 80_000 } as const;
 const MAX_STROKES = 400;
 const MAX_POINTS = 24000;
 const PAD_W = 960;
@@ -38,7 +40,9 @@ interface HangState {
   guessed: string[];
   wrong: number;
   round: number;
-  result: '' | 'won' | 'lost';
+  result: '' | 'won' | 'lost' | 'timeout';
+  startedAt: number;
+  scores: Record<string, number>;
 }
 interface Stroke {
   c: string;
@@ -51,7 +55,9 @@ interface ScribState {
   strokes: Stroke[];
   guesses: Array<{ by: number; text: string; ok: boolean }>;
   round: number;
-  result: '' | 'won' | 'revealed';
+  result: '' | 'won' | 'revealed' | 'timeout';
+  startedAt: number;
+  scores: Record<string, number>;
 }
 
 const pick = <T>(list: readonly T[]): T => list[Math.floor(Math.random() * list.length)] as T;
@@ -67,11 +73,31 @@ export function hangmanWord(raw: unknown): string | null {
 /** The state when the invitation is accepted: the person who invited sets the word or draws first. */
 export function initialState(kind: Kind, first: number, word: string | null): string {
   if (kind === 'hangman') {
-    const s: HangState = { setter: first, word: word ?? pick(HANGMAN_WORDS), guessed: [], wrong: 0, round: 1, result: '' };
+    const s: HangState = { setter: first, word: word ?? pick(HANGMAN_WORDS), guessed: [], wrong: 0, round: 1, result: '', startedAt: Date.now(), scores: {} };
     return JSON.stringify(s);
   }
-  const s: ScribState = { drawer: first, word: pick(SCRIBBLE_WORDS), strokes: [], guesses: [], round: 1, result: '' };
+  const s: ScribState = { drawer: first, word: pick(SCRIBBLE_WORDS), strokes: [], guesses: [], round: 1, result: '', startedAt: Date.now(), scores: {} };
   return JSON.stringify(s);
+}
+
+/** Starts the clock for the first round (called when the invitation is accepted). */
+export function startClock(state: string): string {
+  const s = JSON.parse(state) as { startedAt?: number };
+  s.startedAt = Date.now();
+  return JSON.stringify(s);
+}
+
+const add = (scores: Record<string, number>, who: number, n: number): void => {
+  scores[String(who)] = (scores[String(who)] ?? 0) + n;
+};
+
+/** When the clock has run out, the round ends: in Hangman the person who set the word gets the points. */
+function settle(row: GameRow, state: HangState | ScribState, now: number): void {
+  state.scores ??= {};
+  state.startedAt ??= now;
+  if (state.result || now <= state.startedAt + LIMIT[row.kind]) return;
+  state.result = 'timeout';
+  if (row.kind === 'hangman') add(state.scores, (state as HangState).setter, 50);
 }
 
 const norm = (t: string): string => t.toLowerCase().replace(/[^a-z]/g, '');
@@ -80,36 +106,43 @@ const norm = (t: string): string => t.toLowerCase().replace(/[^a-z]/g, '');
 export function applyMove(row: GameRow, me: number, move: Record<string, unknown>): string {
   if (row.kind === 'hangman') {
     const s = JSON.parse(row.state) as HangState;
+    settle(row, s, Date.now());
     if (move.again === true) {
       if (!s.result) throw bad('Finish this round first.');
       // roles swap: the person who guessed now sets the word
       const setter = s.setter === row.from_id ? row.to_id : row.from_id;
       const word = setter === me ? hangmanWord(move.word) : null;
-      const next: HangState = { setter, word: word ?? pick(HANGMAN_WORDS), guessed: [], wrong: 0, round: s.round + 1, result: '' };
+      const next: HangState = { setter, word: word ?? pick(HANGMAN_WORDS), guessed: [], wrong: 0, round: s.round + 1, result: '', startedAt: Date.now(), scores: s.scores };
       return JSON.stringify(next);
     }
-    if (s.result) throw bad('This round is over. Start a new one.');
+    if (s.result) throw bad(s.result === 'timeout' ? 'Time is up for this round.' : 'This round is over. Start a new one.');
     if (s.setter === me) throw bad('You set this word. Your travel mate is guessing.');
     const letter = String(move.letter ?? '').toUpperCase();
     if (!/^[A-Z]$/.test(letter)) throw bad('Pick a letter.');
     if (s.guessed.includes(letter)) return row.state;
     s.guessed.push(letter);
     if (!s.word.includes(letter)) s.wrong++;
-    if ([...s.word].every((c) => s.guessed.includes(c))) s.result = 'won';
-    else if (s.wrong >= MAX_WRONG) s.result = 'lost';
+    if ([...s.word].every((c) => s.guessed.includes(c))) {
+      s.result = 'won';
+      add(s.scores, me, 50 + (MAX_WRONG - s.wrong) * 10);
+    } else if (s.wrong >= MAX_WRONG) {
+      s.result = 'lost';
+      add(s.scores, s.setter, 50);
+    }
     return JSON.stringify(s);
   }
 
   const s = JSON.parse(row.state) as ScribState;
+  settle(row, s, Date.now());
   if (move.again === true) {
     if (!s.result) throw bad('Finish this round first.');
     const drawer = s.drawer === row.from_id ? row.to_id : row.from_id;
     let word = pick(SCRIBBLE_WORDS);
     if (word === s.word) word = pick(SCRIBBLE_WORDS);
-    const next: ScribState = { drawer, word, strokes: [], guesses: [], round: s.round + 1, result: '' };
+    const next: ScribState = { drawer, word, strokes: [], guesses: [], round: s.round + 1, result: '', startedAt: Date.now(), scores: s.scores };
     return JSON.stringify(next);
   }
-  if (s.result) throw bad('This round is over. Start a new one.');
+  if (s.result) throw bad(s.result === 'timeout' ? 'Time is up for this round.' : 'This round is over. Start a new one.');
   const drawing = s.drawer === me;
   if (move.stroke !== undefined) {
     if (!drawing) throw bad('Only the person drawing can draw.');
@@ -145,7 +178,13 @@ export function applyMove(row: GameRow, me: number, move: Record<string, unknown
     const okGuess = norm(text) === norm(s.word);
     s.guesses.push({ by: me, text, ok: okGuess });
     if (s.guesses.length > 60) s.guesses = s.guesses.slice(-60);
-    if (okGuess) s.result = 'won';
+    if (okGuess) {
+      s.result = 'won';
+      // like the real game: a quicker guess earns more, and the drawer scores too
+      const left = Math.max(0, s.startedAt + LIMIT.scribble - Date.now());
+      add(s.scores, me, Math.max(20, Math.round((left / LIMIT.scribble) * 100)));
+      add(s.scores, s.drawer, 50);
+    }
     return JSON.stringify(s);
   }
   throw bad('Unknown move.');
@@ -163,8 +202,11 @@ export function gameDto(row: GameRow, me: number) {
     updatedAt: row.updated_at,
   };
   if (row.status !== 'active' && row.status !== 'done') return base;
+  const now = Date.now();
+  const them = String(other(row, me));
   if (row.kind === 'hangman') {
     const s = JSON.parse(row.state) as HangState;
+    if (row.status === 'active') settle(row, s, now);
     const mine = s.setter === me;
     const over = s.result !== '' || row.status === 'done';
     return {
@@ -178,10 +220,14 @@ export function gameDto(row: GameRow, me: number) {
         max: MAX_WRONG,
         round: s.round,
         result: s.result,
+        endsAt: s.startedAt + LIMIT.hangman,
+        limit: LIMIT.hangman,
+        scores: { me: s.scores[String(me)] ?? 0, them: s.scores[them] ?? 0 },
       },
     };
   }
   const s = JSON.parse(row.state) as ScribState;
+  if (row.status === 'active') settle(row, s, now);
   const mine = s.drawer === me;
   const over = s.result !== '' || row.status === 'done';
   return {
@@ -194,6 +240,21 @@ export function gameDto(row: GameRow, me: number) {
       guesses: s.guesses.map((g) => ({ mine: g.by === me, text: g.text, ok: g.ok })),
       round: s.round,
       result: s.result,
+      endsAt: s.startedAt + LIMIT.scribble,
+      limit: LIMIT.scribble,
+      scores: { me: s.scores[String(me)] ?? 0, them: s.scores[them] ?? 0 },
+      // like the real game: blanks for each letter, and a letter is given away at half time and again near the end
+      hint: mine || over ? null : hintFor(s.word, Math.min(1, (now - s.startedAt) / LIMIT.scribble)),
     },
   };
+}
+
+/** "_ _ _ _ _" with a letter or two shown as the clock runs down. Spaces stay as gaps. */
+function hintFor(word: string, elapsed: number): string[] {
+  const letters = [...word];
+  const spots = letters.map((c, i) => (c === ' ' ? -1 : i)).filter((i) => i >= 0);
+  // a fixed order per word, so the same letters appear for both players and after a reload
+  const order = [...spots].sort((a, b) => ((a * 7 + word.length * 3) % 11) - ((b * 7 + word.length * 3) % 11));
+  const show = new Set(order.slice(0, elapsed >= 0.75 ? 2 : elapsed >= 0.5 ? 1 : 0));
+  return letters.map((c, i) => (c === ' ' ? ' ' : show.has(i) ? c : ''));
 }

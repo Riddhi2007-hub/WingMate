@@ -162,6 +162,7 @@
         <g style="stroke:var(--brand)" stroke-width="5" stroke-linecap="round" fill="none" id="hangParts"></g>
       </svg>
       <div>
+        <div class="hang-top"><div class="skr-clock" id="hangClock" title="Time left"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="13" r="8"></circle><path d="M12 9v4l2.5 2M9 2h6"></path></svg><span id="hangTime">90</span></div><div class="hang-score" id="hangScore"></div></div>
         <h2 style="margin-bottom:6px">Guess the travel word</h2>
         <p class="muted small" id="hangInfo"></p>
         <div class="word" id="hangWord"></div>
@@ -172,20 +173,34 @@
     </div>
   </div>
 
-  <div class="card" id="game-scribble" hidden>
-    <div class="card-head"><div><h2>Scribble</h2><p class="muted small" id="scrWordLine"></p></div><button class="btn ghost sm" id="scrNew">New word</button></div>
-    <canvas id="pad" width="960" height="540" aria-label="Drawing pad"></canvas>
-    <div class="tools">
-      <span class="small" style="font-weight:500">Colour</span>
-      <span id="scrColors" style="display:flex;gap:8px"></span>
-      <span class="small" style="font-weight:500;margin-left:10px">Brush</span>
-      <input type="range" id="scrSize" min="2" max="24" value="6" aria-label="Brush size">
-      <button class="btn ghost sm" id="scrUndo">Undo</button>
-      <button class="btn ghost sm" id="scrClear">Clear</button>
+  <div class="card skr" id="game-scribble" hidden>
+    <div class="skr-top">
+      <div class="skr-clock" id="scrClock" title="Time left"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="13" r="8"></circle><path d="M12 9v4l2.5 2M9 2h6"></path></svg><span id="scrTime">80</span></div>
+      <div class="skr-round" id="scrRound">Practice</div>
+      <div class="skr-word" id="scrWordLine" aria-live="polite"></div>
+      <button class="btn ghost sm" id="scrNew">New word</button>
     </div>
-    <form class="guess" id="scrGuess" hidden><input type="text" id="scrGuessInput" maxlength="40" placeholder="Type your guess" aria-label="Your guess" autocomplete="off"><button class="btn">Guess</button></form>
-    <div class="guesses" id="scrGuesses"></div>
-    <p class="muted small" id="scrHint">Draw the word without writing it. Your travel mate guesses what it is.</p>
+    <div class="skr-main">
+      <aside class="skr-players" id="scrPlayers" aria-label="Players"></aside>
+      <div class="skr-stage">
+        <div class="skr-canvas">
+          <canvas id="pad" width="960" height="540" aria-label="Drawing pad"></canvas>
+          <div class="skr-overlay" id="scrOverlay" hidden></div>
+        </div>
+        <div class="tools skr-tools">
+          <div class="skr-palette" id="scrColors"></div>
+          <div class="skr-sizes" id="scrSizes"></div>
+          <button class="skr-tool" id="scrEraser" type="button" aria-pressed="false" title="Eraser" aria-label="Eraser"><svg viewBox="0 0 24 24"><path d="M16 3l5 5-11 11H5l-2-2z"></path><path d="M9 10l5 5M5 21h15"></path></svg></button>
+          <button class="skr-tool" id="scrUndo" type="button" title="Undo" aria-label="Undo"><svg viewBox="0 0 24 24"><path d="M9 14L4 9l5-5"></path><path d="M4 9h10a6 6 0 0 1 0 12h-3"></path></svg></button>
+          <button class="skr-tool" id="scrClear" type="button" title="Clear the canvas" aria-label="Clear the canvas"><svg viewBox="0 0 24 24"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"></path></svg></button>
+        </div>
+      </div>
+      <aside class="skr-chat">
+        <div class="skr-msgs" id="scrGuesses" aria-live="polite"></div>
+        <form class="skr-input" id="scrGuess"><input type="text" id="scrGuessInput" maxlength="40" placeholder="Type your guess here..." aria-label="Your guess" autocomplete="off"></form>
+      </aside>
+    </div>
+    <p class="muted small" id="scrHint" style="margin-top:10px"></p>
   </div>
 </section>
 

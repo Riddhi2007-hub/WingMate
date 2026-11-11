@@ -11,7 +11,7 @@ import type { ConnRow, FlightRow, UserRow } from './rows';
 import type { Db, Runtime } from './runtime';
 import { stmt } from './runtime';
 import * as v from './validate';
-import { KINDS, applyMove, gameDto, hangmanWord, initialState, type GameRow, type Kind } from './games';
+import { KINDS, applyMove, gameDto, hangmanWord, initialState, startClock, type GameRow, type Kind } from './games';
 
 type Conn = 'requested' | 'incoming' | 'connected';
 
@@ -571,7 +571,8 @@ const routes: Record<string, Handler> = {
     const b = await readJson(ctx.request);
     const row = await myGame(db, me.id, b.id);
     if (row.status !== 'invited' || row.to_id !== me.id) throw new HttpError(409, 'not_invited', 'That invitation is no longer open.');
-    await db.run('UPDATE games SET status = ?, version = version + 1, updated_at = ? WHERE id = ?', b.accept === true ? 'active' : 'declined', Date.now(), row.id);
+    // the clock starts when the game starts, not when the invite was sent
+    await db.run('UPDATE games SET status = ?, state = ?, version = version + 1, updated_at = ? WHERE id = ?', b.accept === true ? 'active' : 'declined', b.accept === true ? startClock(row.state) : row.state, Date.now(), row.id);
     return ok({ game: gameDto(await myGame(db, me.id, row.id), me.id) });
   },
 
