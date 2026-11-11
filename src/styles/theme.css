@@ -81,3 +81,10 @@ select{-webkit-appearance:none;appearance:none;padding-right:32px;background-ima
 /* the address bar on phones makes 100vh too tall */
 .page{min-height:100vh;min-height:100dvh}
 button,input,select,textarea{font-family:inherit}
+
+/* plan cards, place chips and the shared-picks strip */
+html[data-theme="dark"] .pl,html[data-theme="dark"] .stop{background-color:var(--surface-2);border-color:var(--line);color:var(--ink)}
+html[data-theme="dark"] .stop:has(input:checked){background-color:var(--tint);border-color:var(--brand-text);color:var(--tint-ink)}
+html[data-theme="dark"] .common{background:#2a2419;color:#f3e6c9;border-color:var(--line)}
+html[data-theme="dark"] .bub.them .pchip{background:rgba(255,255,255,.1)}
+html[data-theme="dark"] .pl-bd b,html[data-theme="dark"] .trip h3{color:var(--ink)}
