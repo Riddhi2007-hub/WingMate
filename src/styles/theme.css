@@ -1,0 +1,66 @@
+/* =========================================================================
+   theme.css: dark mode (loaded after the page styles on every page).
+   The red top bar, the red login hero and the flight card keep the brand colours; only the surfaces go dark.
+   Rules use :where() so they beat one-class rules but never a more specific one (.chip.on, .conv.active ...).
+   ========================================================================= */
+html[data-theme="dark"]{
+  color-scheme:dark;
+  --surface:#1d1d22;--surface-2:#26262c;--paper:#f4f4f4;
+  --ink:#f3f3f5;--muted:#b6b6c0;--placeholder:#9c9ca8;--line:#3a3a43;
+  --light-slate:#141417;--slate:#4a4a54;
+  --brand-text:#ff7d75;--saffron:#ff7d75;
+  --tint:#3b1a1c;--tint-ink:#ffcdc9;
+}
+html[data-theme="dark"] body{background:var(--light-slate);color:var(--ink)}
+html[data-theme="dark"] ::placeholder{color:var(--placeholder)}
+
+/* surfaces */
+html[data-theme="dark"] :where(.card,.stat,.mate,.trip,.conv,.opt span,.chip,.tabbtn,.modal-box,.composer,.keys button,.panel,.ring span){background-color:var(--surface)}
+html[data-theme="dark"] :where(input[type=text],input[type=email],input[type=search],input[type=tel],input[type=password],input[type=date],select,textarea){background-color:var(--surface);color:var(--ink);border-color:#62626e}
+html[data-theme="dark"] input[readonly]{background-color:var(--light-slate)}
+html[data-theme="dark"] .filter-grid select.on{background-color:var(--tint)}
+html[data-theme="dark"] .btn.ghost{background:var(--surface);color:var(--brand-text)}
+html[data-theme="dark"] .btn.ghost:hover{background:var(--tint)}
+html[data-theme="dark"] .btn.danger{background:var(--surface);color:var(--saffron);border-color:var(--saffron)}
+html[data-theme="dark"] .btn.danger:hover{background:var(--tint)}
+html[data-theme="dark"] .btn[disabled]{background:var(--surface-2);color:#8a8a96;border-color:var(--slate)}
+html[data-theme="dark"] .conv:hover{background:var(--surface-2)}
+html[data-theme="dark"] .conv .ub{background:var(--brand);color:#fff}
+html[data-theme="dark"] .ring{background:conic-gradient(var(--brand) calc(var(--p)*1%),#3a3a43 0)}
+html[data-theme="dark"] .bubbles{background:#17171b}
+html[data-theme="dark"] .bub.them{background:var(--surface-2);border-color:var(--line);color:var(--ink)}
+html[data-theme="dark"] .savebar{background:rgba(29,29,34,.99)}
+html[data-theme="dark"] .modal{background:rgba(0,0,0,.65)}
+html[data-theme="dark"] .modal-box{box-shadow:0 20px 50px rgba(0,0,0,.6)}
+html[data-theme="dark"] .toast{background:#f3f3f5;color:#141417}
+html[data-theme="dark"] .switch .track{background:#5d5d69}
+html[data-theme="dark"] .sw-btn{border-color:var(--surface)}
+html[data-theme="dark"] .keys button.miss{background:var(--surface-2);color:#7e7e8a}
+html[data-theme="dark"] .toggle:hover{background:var(--surface-2)}
+
+/* the drawing board and the hangman picture stay light, like paper */
+html[data-theme="dark"] .hang svg{background:var(--paper)}
+html[data-theme="dark"] canvas#pad{background:#fff}
+
+/* soft notes that were light sand */
+html[data-theme="dark"] :where(.tag,.retention,.nojs-note,.banner.warn){background:#2f2427;color:#f0ddd2}
+html[data-theme="dark"] .banner.closed{background:var(--surface-2);color:#cfd3d3}
+html[data-theme="dark"] .savestate.dirty{color:#ffb74d}
+html[data-theme="dark"] .banner{border-color:var(--line)}
+html[data-theme="dark"] .banner.show{background:#3b1a1c;border-color:var(--saffron);color:#ffcdc9}
+html[data-theme="dark"] #acctErr,html[data-theme="dark"] #fErr{color:#ff8a80!important}
+
+/* theme button: on the red top bar (dashboard) and floating on the sign-in pages */
+.theme-toggle{width:38px;height:38px;border-radius:50%;display:grid;place-items:center;padding:0;cursor:pointer;flex:none;
+  border:1.5px solid rgba(255,255,255,.75);background:rgba(255,255,255,.12);color:#fff;transition:background .15s,transform .15s}
+.theme-toggle:hover{background:rgba(255,255,255,.26)}
+.theme-toggle:active{transform:scale(.94)}
+.theme-toggle:focus-visible{outline:3px solid rgba(255,255,255,.8);outline-offset:2px}
+.theme-toggle svg{width:19px;height:19px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.theme-toggle .sun{display:none}
+html[data-theme="dark"] .theme-toggle .sun{display:block}
+html[data-theme="dark"] .theme-toggle .moon{display:none}
+.theme-toggle.float{position:fixed;top:16px;right:16px;z-index:50;border-color:var(--line);background:var(--white);color:var(--ink);box-shadow:0 2px 10px rgba(0,0,0,.12)}
+html[data-theme="dark"] .theme-toggle.float{background:var(--surface);box-shadow:0 2px 12px rgba(0,0,0,.5)}
+.theme-toggle.float:hover{background:var(--light-slate)}
+@media (prefers-reduced-motion:reduce){.theme-toggle{transition:none}}

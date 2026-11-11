@@ -9,6 +9,7 @@
  *   router.ts    in-page tab switching
  *   views/*      one file per tab
  */
+import '../shared/theme';
 import { initActions } from './actions';
 import { initFlight, stageUI } from './flight';
 import { state } from './state';

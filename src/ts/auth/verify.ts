@@ -1,3 +1,4 @@
+import '../shared/theme';
 import { ApiError, api } from '../shared/api';
 import { $ } from '../shared/dom';
 

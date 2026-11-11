@@ -1,3 +1,4 @@
+import '../shared/theme';
 import { ApiError, api, brandFolder } from '../shared/api';
 import { $ } from '../shared/dom';
 import { isEmail, showFieldError, showFieldState, wireLiveValidation, wirePasswordToggles } from '../shared/forms';
