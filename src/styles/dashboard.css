@@ -74,7 +74,7 @@ button.chip:hover{border-color:var(--brand)}
 
 /* Inputs */
 label.lbl{display:block;font-size:13.5px;font-weight:500;margin-bottom:6px}
-input[type=text],input[type=email],input[type=search],select,textarea{width:100%;height:44px;padding:0 13px;font:inherit;font-size:15px;color:var(--ink);background:var(--white);border:1.5px solid #9aa4a4;border-radius:10px;outline:none}
+input[type=text],input[type=email],input[type=search],input[type=date],input[type=datetime-local],select,textarea{width:100%;min-width:0;box-sizing:border-box;height:44px;padding:0 13px;font:inherit;font-size:15px;color:var(--ink);background:var(--white);border:1.5px solid #9aa4a4;border-radius:10px;outline:none}
 input:focus,select:focus{border-color:var(--brand);box-shadow:0 0 0 3px rgba(var(--brand-rgb),.18)}
 input[readonly]{background:var(--light-slate);color:var(--muted)}
 ::placeholder{color:#6b7777;opacity:1}
@@ -222,7 +222,13 @@ canvas#pad{width:100%;max-width:860px;height:auto;aspect-ratio:16/9;background:#
 input[type=range]{width:120px;accent-color:var(--brand);height:auto;padding:0;border:0}
 
 /* ===== Profile ===== */
-.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.form-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px}
+.form-grid>div{min-width:0}
+input[type=date],input[type=datetime-local]{appearance:none;-webkit-appearance:none;display:block;line-height:1;padding-right:10px}
+input[type=date]::-webkit-date-and-time-value,input[type=datetime-local]::-webkit-date-and-time-value{text-align:left;min-height:1.2em}
+#flightModal .modal-box{max-width:480px}
+#flightModal .form-grid{gap:14px 16px}
+.form-grid>div:nth-child(even) .ac-list{left:auto;right:0}
 .retention{background:var(--light-sand);color:#33291a;border-radius:12px;padding:14px 16px;font-size:14.5px}
 .retention b{font-weight:500}
 
@@ -331,3 +337,4 @@ input[type=range]{width:120px;accent-color:var(--brand);height:auto;padding:0;bo
 .globe-zoom{position:absolute;right:2px;bottom:10%;display:grid;gap:6px}
 .globe-zoom button{width:34px;height:34px;border-radius:50%;border:1px solid rgba(255,255,255,.7);background:rgba(20,6,24,.55);color:#fff;font:inherit;font-size:20px;line-height:1;cursor:pointer;display:grid;place-items:center;padding:0}
 .globe-zoom button:hover{background:rgba(20,6,24,.8)}
+input[type=datetime-local]{font-size:14px;padding-left:11px;padding-right:8px}
