@@ -480,3 +480,4 @@ html[data-theme="dark"] .skr-p.got{background:#123d27}
 html[data-theme="dark"] .skr-p.got b,html[data-theme="dark"] .skr-p.got small,html[data-theme="dark"] .skr-msgs .ok{color:#8ff0b8}
 html[data-theme="dark"] .skr-msgs .ok{background:#123d27!important}
 .bubbles>*{flex-shrink:0}
+.skr-input input{font-size:14px;text-overflow:ellipsis}

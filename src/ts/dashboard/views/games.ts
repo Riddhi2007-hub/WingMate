@@ -252,7 +252,7 @@ function renderScribble(): void {
     box.innerHTML = lines.join('');
     box.scrollTop = box.scrollHeight;
     guessBox.disabled = s.drawerIsMe || !!s.result;
-    guessBox.placeholder = s.drawerIsMe ? 'You are drawing' : s.result ? 'Round over' : 'Type your guess here...';
+    guessBox.placeholder = s.drawerIsMe ? 'You are drawing' : s.result ? 'Round over' : 'Type your guess';
     overlay.hidden = !s.result;
     if (s.result) {
       const title = s.result === 'won' ? (s.drawerIsMe ? `${them} guessed it!` : 'You guessed it!') : s.result === 'timeout' ? 'Time’s up!' : 'Round over';
@@ -268,7 +268,7 @@ function renderScribble(): void {
     $('#scrPlayers').innerHTML = `<div class="skr-p me"><span class="rk">#1</span><span><b>You</b><small>Practice</small></span><span class="ic">&#9999;&#65039;</span></div>`;
     $('#scrGuesses').innerHTML = `<div class="sys">Practising on your own. Invite a travel mate above to play for real: they guess here.</div>`;
     guessBox.disabled = true;
-    guessBox.placeholder = 'Guesses appear here in a real game';
+    guessBox.placeholder = 'Play a real game to guess';
     overlay.hidden = !scrTimedOut;
     if (scrTimedOut) overlay.innerHTML = `<div>Time’s up!<small>Press New word to draw again.</small></div>`;
     $('#scrHint').textContent = 'Practice: draw the word before the clock runs out.';
