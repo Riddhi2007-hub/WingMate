@@ -184,7 +184,7 @@ export function pictureHTML(place: string, index: number, label: string, align =
   const file = encodeURIComponent(name);
   const src = `https://commons.wikimedia.org/wiki/Special:FilePath/${file}?width=500`;
   const page = `https://commons.wikimedia.org/wiki/File:${file}`;
-  return `${scene}<img class="photo" src="${attr(src)}" alt="${attr(label)}" loading="lazy" decoding="async" referrerpolicy="no-referrer"><a class="credit" href="${attr(page)}" target="_blank" rel="noopener" title="Photo from Wikimedia Commons: author and licence">Photo &#169; Wikimedia Commons</a>`;
+  return `${scene}<img class="tripphoto" src="${attr(src)}" alt="${attr(label)}" loading="lazy" decoding="async" referrerpolicy="no-referrer"><a class="credit" href="${attr(page)}" target="_blank" rel="noopener" title="Photo from Wikimedia Commons: author and licence">Photo &#169; Wikimedia Commons</a>`;
 }
 
 /** If a photo cannot load, take it away so the drawn scene shows. */
@@ -193,7 +193,7 @@ export function initPhotoFallback(): void {
     'error',
     (event) => {
       const el = event.target;
-      if (el instanceof HTMLImageElement && el.classList.contains('photo')) {
+      if (el instanceof HTMLImageElement && el.classList.contains("tripphoto")) {
         el.nextElementSibling?.classList.contains('credit') && el.nextElementSibling.remove();
         el.remove();
       }
