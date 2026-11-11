@@ -20,7 +20,7 @@
       <span class="divider" aria-hidden="true"></span>
       <span class="app-name">WingMate</span>
     </a>
-    <nav class="nav" aria-label="Main">
+    <nav class="nav" id="mainNav" aria-label="Main">
       <a href="#home" data-nav="home"><svg class="i" viewBox="0 0 24 24"><path d="M3 11l9-8 9 8v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"></path></svg>Home</a>
       <a href="#find" data-nav="find"><svg class="i" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-4-4"></path></svg>Find travel mates</a>
       <a href="#messages" data-nav="messages"><svg class="i" viewBox="0 0 24 24"><path d="M4 5h16v11H9l-5 4z"></path></svg>Messages<span class="dot" id="navDot" hidden>0</span></a>
@@ -28,6 +28,7 @@
       <a href="#prefs" data-nav="prefs"><svg class="i" viewBox="0 0 24 24"><path d="M4 7h10M18 7h2M4 17h2M10 17h10"></path><circle cx="16" cy="7" r="2"></circle><circle cx="8" cy="17" r="2"></circle></svg>My preferences</a>
     </nav>
     <div class="user">
+      <button class="menu-btn" id="menuBtn" type="button" aria-label="Menu" aria-expanded="false" aria-controls="mainNav"><svg class="i" viewBox="0 0 24 24"><path class="m-open" d="M4 7h16M4 12h16M4 17h16"></path><path class="m-close" d="M6 6l12 12M18 6L6 18"></path></svg></button>
       <a class="user-link" href="#profile" id="userLink" title="Profile &amp; data" aria-label="Profile and data"><span class="av" id="whoAv">A</span></a>
       <a class="out" href="login.html">Log out</a>
     </div>

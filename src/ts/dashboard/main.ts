@@ -55,6 +55,23 @@ async function main(): Promise<void> {
   initProfile();
   const globeHost = document.getElementById('globeWrap');
   if (globeHost) attachGlobe(initGlobe(globeHost));
+  const top = document.querySelector('header.top');
+  const menuBtn = document.getElementById('menuBtn');
+  const setMenu = (open: boolean): void => {
+    top?.classList.toggle('open', open);
+    menuBtn?.setAttribute('aria-expanded', String(open));
+  };
+  menuBtn?.addEventListener('click', () => setMenu(!top?.classList.contains('open')));
+  document.getElementById('mainNav')?.addEventListener('click', () => setMenu(false));
+  document.addEventListener('click', (e) => {
+    if (top && !top.contains(e.target as Node)) setMenu(false);
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') setMenu(false);
+  });
+  window.addEventListener('resize', () => {
+    if (window.innerWidth > 1000) setMenu(false);
+  });
   initFlight();
 
   configureSync({ changed: renderAll, newMessage: onIncoming });
