@@ -300,7 +300,7 @@ input[type=date]::-webkit-date-and-time-value,input[type=datetime-local]::-webki
 .menu-btn .m-close{display:none}
 .top.open .menu-btn .m-open{display:none}
 .top.open .menu-btn .m-close{display:inline}
-.top:has(#navDot:not([hidden])) .menu-btn::after{content:"";position:absolute;top:-1px;right:-1px;width:10px;height:10px;border-radius:50%;background:#ffd54a;border:2px solid var(--top-bg,var(--brand))}
+.top:has(#navDot:not([hidden]),#gamesDot:not([hidden])) .menu-btn::after{content:"";position:absolute;top:-1px;right:-1px;width:10px;height:10px;border-radius:50%;background:#ffd54a;border:2px solid var(--top-bg,var(--brand))}
 @media (max-width:1000px){
   .top-in{position:relative}
   .menu-btn{display:grid;order:5}
@@ -389,3 +389,30 @@ input[type=time]{font-size:14px;padding-left:11px;padding-right:8px}
 .credit{position:absolute;right:6px;top:6px;font-size:10px;line-height:1;padding:3px 6px;border-radius:999px;background:rgba(0,0,0,.45);color:#fff;text-decoration:none;opacity:.8}
 .credit:hover{opacity:1;text-decoration:underline}
 .trip .pic .days{z-index:1}
+
+/* ===== Two-player games ===== */
+.game-center{display:grid;gap:14px}
+.gc-row{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:10px 12px;border:1px solid var(--line);border-radius:12px}
+.gc-row .nm{flex:1;min-width:180px}
+.gc-row .nm b{display:block}
+.gc-row .nm span{font-size:13px;color:var(--muted)}
+.gc-row.invite{border-color:var(--brand);background:var(--tint)}
+.gc-row.invite .nm span{color:var(--tint-ink)}
+.gc-form{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end}
+.gc-form .fld{display:grid;gap:6px;min-width:160px;flex:1}
+.gc-form .fld.word{max-width:220px}
+.gc-form .btn{height:44px}
+.live-bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:-6px 0 14px;padding:10px 14px;border-radius:12px;background:#22b866;color:#fff;font-weight:600}
+.live-bar .grow{flex:1}
+.live-bar .btn{background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.75);color:#fff}
+.live-dot{width:9px;height:9px;border-radius:50%;background:#fff;animation:livepulse 1.4s infinite}
+@keyframes livepulse{50%{opacity:.35}}
+.again-row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:18px}
+.again-row input{max-width:220px}
+.guess{display:flex;gap:10px;margin:12px 0}
+.guess input{flex:1}
+.guesses{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0 10px}
+.guesses span{padding:4px 10px;border-radius:999px;font-size:13px;background:var(--light-slate);color:var(--ink)}
+.guesses span.mine{background:var(--tint);color:var(--tint-ink)}
+.guesses span.ok{background:#22b866;color:#fff;font-weight:600}
+canvas#pad.readonly{cursor:default}

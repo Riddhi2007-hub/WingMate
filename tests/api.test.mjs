@@ -225,6 +225,50 @@ try {
     ok('Zed no longer shown to Lena after the shared flight is removed', !r.json.people.some(p => p.name === 'Zed T.'));
     r = await x.call('DELETE', '/api/flight'); r = await x.call('GET', '/api/sync'); ok('remove all flights', r.json.flights.length === 0 && r.json.flight === null);
   }
+  // two-player games: invite, accept, play; the word stays hidden from the guesser
+  {
+    const g1 = new Client(), g2 = new Client(), g3 = new Client();
+    await signup(g1, 'Gina'); await signup(g2, 'Hugo'); await signup(g3, 'Ivy');
+    const d = soon(130); const leg = { number: 'AK 777', date: dateStr(d), from: 'HKG', to: 'KUL', departsAt: d, landsAt: d + 4 * 3600e3 };
+    for (const c of [g1, g2, g3]) await c.call('PUT', '/api/flight', leg);
+    const hugo = (await g1.call('GET', '/api/sync')).json.people.find(p => p.name === 'Hugo T.');
+    const ivy = (await g1.call('GET', '/api/sync')).json.people.find(p => p.name === 'Ivy T.');
+    r = await g1.call('POST', '/api/games', { to: hugo.id, kind: 'hangman' }); ok('cannot invite someone you are not connected with', r.status === 403);
+    await g1.call('POST', '/api/connections', { to: hugo.id });
+    const gina = (await g2.call('GET', '/api/sync')).json.people.find(p => p.name === 'Gina T.');
+    await g2.call('POST', '/api/connections/respond', { from: gina.id, accept: true });
+    r = await g1.call('POST', '/api/games', { to: hugo.id, kind: 'hangman', word: 'bad word' }); ok('hangman word must be one word', r.status === 400);
+    r = await g1.call('POST', '/api/games', { to: hugo.id, kind: 'hangman', word: 'noodles' }); ok('invite sent', r.status === 200 && r.json.game.status === 'invited');
+    const gid = r.json.game.id;
+    r = await g1.call('POST', '/api/games', { to: hugo.id, kind: 'scribble' }); ok('only one open game per pair', r.status === 409);
+    r = await g2.call('GET', '/api/sync'); const inv = r.json.games.find(g => g.id === gid);
+    ok('invitee sees the invitation (and no word yet)', inv && inv.status === 'invited' && !inv.invitedByMe && !inv.hangman);
+    r = await g1.call('POST', '/api/games/move', { id: gid, move: { letter: 'N' } }); ok('no moves before it is accepted', r.status === 409);
+    r = await g3.call('POST', '/api/games/respond', { id: gid, accept: true }); ok('a stranger cannot accept', r.status === 404);
+    r = await g2.call('POST', '/api/games/respond', { id: gid, accept: true }); ok('invitee accepts', r.status === 200 && r.json.game.status === 'active');
+    ok('the guesser does not get the word', r.json.game.hangman.word === null && r.json.game.hangman.mask.every(c => c === ''));
+    r = await g1.call('GET', '/api/games'); ok('the setter sees the word', r.json.games[0].hangman.word === 'NOODLES');
+    r = await g1.call('POST', '/api/games/move', { id: gid, move: { letter: 'O' } }); ok('the setter cannot guess', r.status === 400);
+    for (const l of ['N', 'O', 'D', 'L', 'E']) r = await g2.call('POST', '/api/games/move', { id: gid, move: { letter: l } });
+    ok('two letters in, word not yet solved', r.json.game.hangman.result === '' && r.json.game.hangman.mask.join('') === 'NOODLE');
+    r = await g2.call('POST', '/api/games/move', { id: gid, move: { letter: 'S' } }); ok('guessing all letters wins', r.json.game.hangman.result === 'won' && r.json.game.hangman.word === 'NOODLES');
+    r = await g2.call('POST', '/api/games/move', { id: gid, move: { again: true, word: 'temple' } }); ok('next round swaps roles', r.status === 200 && r.json.game.hangman.setterIsMe === true && r.json.game.hangman.word === 'TEMPLE');
+    r = await g1.call('POST', '/api/games/end', { id: gid }); ok('either player can end the game', r.status === 200);
+    // scribble
+    r = await g2.call('POST', '/api/games', { to: gina.id, kind: 'scribble' }); const sid = r.json.game.id;
+    r = await g1.call('POST', '/api/games/respond', { id: sid, accept: false }); r = await g2.call('GET', '/api/sync');
+    ok('a declined invitation is reported back', r.json.games.find(g => g.id === sid)?.status === 'declined');
+    r = await g2.call('POST', '/api/games', { to: gina.id, kind: 'scribble' }); const sid2 = r.json.game.id;
+    await g1.call('POST', '/api/games/respond', { id: sid2, accept: true });
+    r = await g2.call('POST', '/api/games/move', { id: sid2, move: { stroke: { c: '#ff0000', s: 6, p: [10, 10, 50, 60, 9999, 9999] } } });
+    ok('the drawer draws (points kept on the pad)', r.status === 200 && r.json.game.scribble.strokes.length === 1 && r.json.game.scribble.strokes[0].p[4] === 960);
+    const word = r.json.game.scribble.word;
+    r = await g1.call('GET', '/api/games'); const sc = r.json.games.find(g => g.id === sid2).scribble;
+    ok('the guesser sees the drawing but not the word', sc.strokes.length === 1 && sc.word === null && sc.length === word.length);
+    r = await g1.call('POST', '/api/games/move', { id: sid2, move: { stroke: { c: '#000000', s: 4, p: [1, 1, 2, 2] } } }); ok('the guesser cannot draw', r.status === 400);
+    r = await g1.call('POST', '/api/games/move', { id: sid2, move: { guess: 'banana' } }); ok('a wrong guess is recorded', r.json.game.scribble.guesses.length === 1 && !r.json.game.scribble.guesses[0].ok);
+    r = await g1.call('POST', '/api/games/move', { id: sid2, move: { guess: word.toUpperCase() + '!' } }); ok('the right guess wins', r.json.game.scribble.result === 'won' && r.json.game.scribble.word === word);
+  }
 } finally {
   try { await stop(); } catch {}
   rmSync(dir, { recursive: true, force: true });

@@ -9,6 +9,7 @@ import { setPeople } from './data';
 import type { PrefKey } from './options';
 import { state } from './state';
 import type { ChatMessage, Flight, Person, Prefs } from './types';
+import { setGames, type GameDto } from './gamestate';
 
 interface MessageDto {
   id: number;
@@ -36,6 +37,7 @@ interface SyncDto {
   flight: Flight | null;
   flights: Flight[];
   people: Person[];
+  games?: GameDto[];
   messages: MessageDto[];
   cursor: number;
 }
@@ -103,6 +105,8 @@ function apply(dto: SyncDto): boolean {
       if (p.window) state.windows[p.id] = p.window;
     }
   }
+
+  if (pending === 0) setGames(dto.games ?? []);
 
   // messages: the first call returns the history, later calls only what is new
   for (const m of dto.messages) {

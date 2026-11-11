@@ -37,6 +37,8 @@ export async function runJobs(db: Db, s: Settings): Promise<{ flyersCleared: num
     { sql: 'DELETE FROM sessions WHERE expires_at <= ?', params: [now] },
     { sql: 'DELETE FROM tokens WHERE expires_at <= ?', params: [now] },
     { sql: 'DELETE FROM rate_limits WHERE reset_at <= ?', params: [now] },
+    // games are short-lived: anything untouched for two days goes
+    { sql: 'DELETE FROM games WHERE updated_at < ?', params: [now - 2 * DAY] },
     // sign-ups that never confirmed their email within a week are removed, so the address can be used again
     { sql: 'DELETE FROM users WHERE email_verified = 0 AND created_at < ?', params: [now - 7 * DAY] },
   ]);

@@ -11,6 +11,7 @@ import type { ConnRow, FlightRow, UserRow } from './rows';
 import type { Db, Runtime } from './runtime';
 import { stmt } from './runtime';
 import * as v from './validate';
+import { KINDS, applyMove, gameDto, hangmanWord, initialState, type GameRow, type Kind } from './games';
 
 type Conn = 'requested' | 'incoming' | 'connected';
 
@@ -191,9 +192,28 @@ async function syncPayload(db: Db, me: UserRow, after: number) {
     flight: flightDto(current),
     flights: flights.map((f) => flightDto(f)),
     people,
+    games: await gamesFor(db, me.id, now),
     messages,
     cursor: messages.length ? Math.max(...messages.map((m) => m.id)) : after,
   };
+}
+
+/** Open games and invitations, plus recently finished ones (so the inviter hears about a decline). */
+async function gamesFor(db: Db, me: number, now: number) {
+  const rows = await db.all<GameRow>(
+    `SELECT * FROM games WHERE (from_id = ? OR to_id = ?) AND (status IN ('invited','active') OR updated_at > ?) ORDER BY updated_at DESC LIMIT 20`,
+    me, me, now - 10 * 60_000,
+  );
+  if (!rows.length) return [];
+  const blockRows = await db.all<{ blocker_id: number; blocked_id: number }>('SELECT blocker_id, blocked_id FROM blocks WHERE blocker_id = ? OR blocked_id = ?', me, me);
+  const blocked = new Set(blockRows.map((b) => (b.blocker_id === me ? b.blocked_id : b.blocker_id)));
+  return rows.filter((r) => !blocked.has(r.from_id === me ? r.to_id : r.from_id)).map((r) => gameDto(r, me));
+}
+
+async function myGame(db: Db, me: number, id: unknown): Promise<GameRow> {
+  const row = await db.get<GameRow>('SELECT * FROM games WHERE id = ? AND (from_id = ? OR to_id = ?)', Number(id), me, me);
+  if (!row) throw new HttpError(404, 'not_found', 'That game is no longer there.');
+  return row;
 }
 
 // ---------------------------------------------------------------- handlers
@@ -516,6 +536,68 @@ const routes: Record<string, Handler> = {
     if (!target || target.id === me.id) throw new HttpError(404, 'not_found', 'That person is not available.');
     const reason = v.str(b.reason, 'reason', 3, 500);
     await db.run('INSERT INTO reports (reporter_id, reported_id, reason, created_at) VALUES (?, ?, ?, ?)', me.id, target.id, reason, Date.now());
+    return ok();
+  },
+
+  async 'GET /api/games'(ctx) {
+    const me = requireUser(ctx);
+    return ok({ games: await gamesFor(ctx.db, me.id, Date.now()) });
+  },
+
+  async 'POST /api/games'(ctx) {
+    const me = requireUser(ctx);
+    const { db } = ctx;
+    await rateLimit(db, `game:${me.id}`, 60, HOUR);
+    const b = await readJson(ctx.request);
+    const kind = KINDS.find((k) => k === b.kind) as Kind | undefined;
+    if (!kind) throw bad('Choose a game.');
+    const to = Number(b.to);
+    const conn = await pairConnection(db, me.id, to);
+    if (!conn || conn.status !== 'connected' || (await isBlocked(db, me.id, to))) throw new HttpError(403, 'not_connected', 'You can only play with people you are connected with.');
+    const word = kind === 'hangman' ? hangmanWord(b.word) : null;
+    const open = await db.get<GameRow>(
+      "SELECT * FROM games WHERE status IN ('invited','active') AND ((from_id = ? AND to_id = ?) OR (from_id = ? AND to_id = ?))",
+      me.id, to, to, me.id,
+    );
+    if (open) throw new HttpError(409, 'game_open', open.status === 'invited' ? 'There is already an invitation between you two. Accept it or cancel it first.' : 'You already have a game going with them. End it first.');
+    const now = Date.now();
+    const id = (await db.run("INSERT INTO games (kind, from_id, to_id, status, state, version, created_at, updated_at) VALUES (?, ?, ?, 'invited', ?, 0, ?, ?)", kind, me.id, to, initialState(kind, me.id, word), now, now)).id;
+    return ok({ game: gameDto((await myGame(db, me.id, id)), me.id) });
+  },
+
+  async 'POST /api/games/respond'(ctx) {
+    const me = requireUser(ctx);
+    const { db } = ctx;
+    const b = await readJson(ctx.request);
+    const row = await myGame(db, me.id, b.id);
+    if (row.status !== 'invited' || row.to_id !== me.id) throw new HttpError(409, 'not_invited', 'That invitation is no longer open.');
+    await db.run('UPDATE games SET status = ?, version = version + 1, updated_at = ? WHERE id = ?', b.accept === true ? 'active' : 'declined', Date.now(), row.id);
+    return ok({ game: gameDto(await myGame(db, me.id, row.id), me.id) });
+  },
+
+  async 'POST /api/games/move'(ctx) {
+    const me = requireUser(ctx);
+    const { db } = ctx;
+    await rateLimit(db, `gmove:${me.id}`, 240, 60_000);
+    const b = await readJson(ctx.request);
+    const row = await myGame(db, me.id, b.id);
+    if (row.status !== 'active') throw new HttpError(409, 'not_active', row.status === 'invited' ? 'Waiting for them to accept.' : 'This game has ended.');
+    const move = typeof b.move === 'object' && b.move !== null ? (b.move as Record<string, unknown>) : {};
+    const state = applyMove(row, me.id, move);
+    // only one change at a time: if someone else moved first, the player just tries again
+    const changed = (await db.run('UPDATE games SET state = ?, version = version + 1, updated_at = ? WHERE id = ? AND version = ?', state, Date.now(), row.id, row.version)).changes;
+    if (!changed) throw new HttpError(409, 'conflict', 'Your travel mate moved at the same time. Try again.');
+    return ok({ game: gameDto(await myGame(db, me.id, row.id), me.id) });
+  },
+
+  async 'POST /api/games/end'(ctx) {
+    const me = requireUser(ctx);
+    const { db } = ctx;
+    const b = await readJson(ctx.request);
+    const row = await myGame(db, me.id, b.id);
+    if (row.status === 'invited' || row.status === 'active') {
+      await db.run('UPDATE games SET status = ?, version = version + 1, updated_at = ? WHERE id = ?', row.status === 'invited' ? 'cancelled' : 'done', Date.now(), row.id);
+    }
     return ok();
   },
 
