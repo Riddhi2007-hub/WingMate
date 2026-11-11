@@ -1,7 +1,7 @@
 import { $, esc } from '../../shared/dom';
 import { TRIPS, getPeople } from '../data';
 import { destinationFor } from '../destinations';
-import { sceneSVG } from '../scenes';
+import { pictureHTML } from '../scenes';
 import { ranked } from '../matching';
 import { GOAL_LABEL } from '../options';
 import { state } from '../state';
@@ -74,7 +74,7 @@ function renderSuggestions(): void {
           return `<div class="trip"><div class="sw"><span>${trip.days}<small>days</small></span></div><div class="bd"><div><h3>${esc(trip.name)}</h3><p>${esc(trip.text)}</p></div><div class="chips">${tags}</div><div><button class="btn ghost sm" data-act="tripmates" data-tag="${esc(trip.tags[0])}">See mates who like this</button></div></div></div>`;
         }
         const best = rank === 0 && n > 0 ? '<span class="best">Best match for you</span>' : '';
-        return `<div class="trip has-pic"><div class="pic">${sceneSVG(dest.key, index, `${trip.name} in ${dest.city}`)}<span class="days">${trip.days} day${trip.days === 1 ? '' : 's'}</span></div><div class="bd"><div><h3>${esc(trip.name)} ${best}</h3><p>${esc(trip.text)}</p></div><div class="chips">${tags}</div><details class="plan"><summary>See the plan (${stops.length} places)</summary><ol class="stops">${stops.map((x) => `<li>${esc(x)}</li>`).join('')}</ol></details><div class="trip-actions"><button class="btn ghost sm" data-act="tripmates" data-tag="${esc(trip.tags[0])}">See mates who like this</button><button class="btn sm" data-act="planChat" data-dest="${esc(dest.key)}" data-i="${index}">Discuss in chat</button></div></div></div>`;
+        return `<div class="trip has-pic"><div class="pic">${pictureHTML(dest.key, index, `${trip.name} in ${dest.city}`)}<span class="days">${trip.days} day${trip.days === 1 ? '' : 's'}</span></div><div class="bd"><div><h3>${esc(trip.name)} ${best}</h3><p>${esc(trip.text)}</p></div><div class="chips">${tags}</div><details class="plan"><summary>See the plan (${stops.length} places)</summary><ol class="stops">${stops.map((x) => `<li>${esc(x)}</li>`).join('')}</ol></details><div class="trip-actions"><button class="btn ghost sm" data-act="tripmates" data-tag="${esc(trip.tags[0])}">See mates who like this</button><button class="btn sm" data-act="planChat" data-dest="${esc(dest.key)}" data-i="${index}">Discuss in chat</button></div></div></div>`;
       })
       .join('');
     if (dest) body.innerHTML += `<p class="hint" style="margin-top:2px">Ideas for your trip, not bookable packages. Check details before you go.</p>`;

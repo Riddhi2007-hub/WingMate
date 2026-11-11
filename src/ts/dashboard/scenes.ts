@@ -150,3 +150,54 @@ export function sceneSVG(place: string, mood: number, label: string, align = 'xM
     : `<circle cx="238" cy="70" r="26" fill="${m.sun}" opacity=".95"/>`;
   return `<svg class="scene" viewBox="0 0 320 200" preserveAspectRatio="${align} slice" role="img" aria-label="${label.replace(/"/g, '&quot;')}" focusable="false"><defs><linearGradient id="${id}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${m.sky[0]}"/><stop offset="1" stop-color="${m.sky[1]}"/></linearGradient></defs><rect width="320" height="200" fill="url(#${id})"/>${stars}${sun}${draw ? draw(m) : ''}<rect x="0" y="${GROUND}" width="320" height="32" fill="${m.sil}"/></svg>`;
 }
+
+/* ---------- real photos ---------- */
+
+/**
+ * One photo per trip idea, from Wikimedia Commons (free licences; each card links to the photo's page with its
+ * author and licence). They load straight from Wikimedia in the visitor's browser. If one fails to load, the drawn
+ * scene underneath shows instead.
+ */
+const PHOTOS: Record<string, string[]> = {
+  hongkong: ['Victoria_Harbour_(Hong_Kong).jpg', '廟街永鴻麻雀館,_Hong_Kong_~_Kowloon_Neon_~_Near_Temple_Street_Night_Market.jpg', 'Tian_Tan_Buddha_by_Beria.jpg', 'Man_Mo_Temple_Compound.jpg'],
+  kualalumpur: ['Petronas_twin_towers.jpg', 'Sultan_Abdul_Samad_Building_and_Merdeka_Square,_Kuala_Lumpur.jpg', 'Genting-Highlands_Malaysia_Resorts-World-Genting-01.jpg', 'Street_food_at_Jalan_Alor,_Kuala_Lumpur,_Malaysia.jpg'],
+  kolkata: ['Victoria_Memorial_Hall,_Kolkata.jpg', 'Fuchka_or_Panipuri_in_Kolkata.jpg', 'Prinsep_Ghat_Evening.jpg', 'Marble_Palace_Kolkata.jpg'],
+  delhi: ['Red_Fort,_Delhi_India.jpg', 'Chandni_Chowk._Delhi,_India_(23129638199).jpg', 'Taj_Mahal,_Agra,_India.jpg', 'Qutub_Minar,_Delhi,_India.jpg'],
+  mumbai: ['Gateway_of_India,_Mumbai,_IN.jpg', 'Juhu_beach_sunset.jpg', 'BKC_skyline_(244401426).jpg', 'Elephanta_Caves,_India.jpg'],
+  bengaluru: ['UB_City,_Bangalore.JPG', 'Glasshouse_and_fountain_at_lalbagh.jpg', 'Mysore_palace_front_view.jpg', 'Masala_dosa_01.jpg'],
+  bangkok: ['Wat_Arun_in_Bangkok_Yai_District,_Bangkok,_Thailand.jpg', 'Yaowarat_at_night_(32455695783).jpg', 'Lumpini_Park,_Bangkok,_Thailand_Silom-Sathorn_CBD.JPG', 'Chatuchak_Weekend_Market_Soi.jpg'],
+  singapore: ['Supertree_Grove,_Gardens_by_the_Bay,_Singapore_-_20120712-02.jpg', 'Satay_Street_Lau_Pa_Sat_Singapore.jpg', 'Clarke_Quay,_Singapore_(3171104214).jpg', 'Haji_Lane,_Kampong_Glam_(02).jpg'],
+  bali: ['1_Tegalalang_rice_terrace_ubud_bali.jpg', 'Uluwatu_Temple_at_Sunset.jpg', 'Banyumala_Waterfall.jpg', 'Pura_Tanah_Lot.jpg'],
+  hochiminh: ['Saigon_Notre-Dame_Basilica_(14695412776).jpg', 'Two_mini_banh_mi_Vietnamese_sandwiches.jpg', 'Canal_in_Mekong_Delta_-_My_Tho_-_Vietnam_(15726848817).jpg', 'Củ_Chi_tunnels_entrance.JPG'],
+  manila: ['Intramuros,_Manila,_Philippines.jpg', 'Filipino-Chinese_Friendship_Arch.jpg', 'Skyline_of_Makati_at_night.jpg', 'Taal_Volcano_Island_-_distant_view_(Tagaytay,_Cavite)(2018-02-01).jpg'],
+  tokyo: ['Senso-ji,_Asakusa,_Tokyo.jpg', 'Tsukiji_Outer_Market.jpg', 'Akihabara_Night.jpg', 'Shinjuku_Gyoen_National_Garden_-_sakura_10.jpg'],
+  sydney: ['Sydney_Harbour_Bridge_and_Opera_House.jpg', 'Bondi_Beach_Sydney_Australia_7.jpg', 'Three_Sisters_from_echo_point.jpg', 'Playfair_Street_-_The_Rocks,_Sydney,_NSW_(7875760192).jpg'],
+};
+
+const attr = (s: string): string => s.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+
+/** A photo for a trip idea (with the drawn scene underneath as a fallback) and a small credit link. */
+export function pictureHTML(place: string, index: number, label: string, align = 'xMidYMax'): string {
+  const name = PHOTOS[place]?.[index];
+  const scene = sceneSVG(place, index, label, align);
+  if (!name) return scene;
+  const file = encodeURIComponent(name);
+  const src = `https://commons.wikimedia.org/wiki/Special:FilePath/${file}?width=500`;
+  const page = `https://commons.wikimedia.org/wiki/File:${file}`;
+  return `${scene}<img class="photo" src="${attr(src)}" alt="${attr(label)}" loading="lazy" decoding="async" referrerpolicy="no-referrer"><a class="credit" href="${attr(page)}" target="_blank" rel="noopener" title="Photo from Wikimedia Commons: author and licence">Photo &#169; Wikimedia Commons</a>`;
+}
+
+/** If a photo cannot load, take it away so the drawn scene shows. */
+export function initPhotoFallback(): void {
+  document.addEventListener(
+    'error',
+    (event) => {
+      const el = event.target;
+      if (el instanceof HTMLImageElement && el.classList.contains('photo')) {
+        el.nextElementSibling?.classList.contains('credit') && el.nextElementSibling.remove();
+        el.remove();
+      }
+    },
+    true,
+  );
+}

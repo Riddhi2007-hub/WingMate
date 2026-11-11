@@ -169,3 +169,4 @@ build.mjs           builds src/ + brands/ -> dist/<brand>/
 
 ## Credits
 Globe country outlines: public-domain `johan/world.geo.json`, simplified by `scripts/build-world.mjs`.
+Trip photos: Wikimedia Commons (free licences; each photo links to its author and licence page).

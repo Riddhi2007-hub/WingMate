@@ -11,7 +11,7 @@ import { ApiError, api } from '../../shared/api';
 import { findPerson } from '../data';
 import { ALL_DESTINATIONS, destinationByKey, destinationFor, type Destination } from '../destinations';
 import { refreshAll, show } from '../router';
-import { sceneSVG } from '../scenes';
+import { pictureHTML } from '../scenes';
 import { state } from '../state';
 import { save, sync } from '../sync';
 import { connectedPeople, toast } from '../ui';
@@ -96,7 +96,7 @@ export function planCardHTML(text: string, from: 'me' | 'them', personId: string
   const chips = p.stops.map((s) => `<span class="pchip ${common.has(s.toLowerCase()) ? 'both' : ''}">${common.has(s.toLowerCase()) ? '&#10003; ' : ''}${esc(s)}</span>`).join('');
   const dest = ALL_DESTINATIONS.find((d) => d.city === p.city);
   const trip = dest?.trips.find((t) => t.name === p.name);
-  const pic = dest && p.kind === 'plan' ? `<div class="pc-pic">${sceneSVG(dest.key, trip ? dest.trips.indexOf(trip) : 0, p.name, 'xMidYMid')}</div>` : '';
+  const pic = dest && p.kind === 'plan' ? `<div class="pc-pic">${pictureHTML(dest.key, trip ? dest.trips.indexOf(trip) : 0, p.name, 'xMidYMid')}</div>` : '';
   const data = `data-city="${esc(p.city)}" data-stops="${esc(p.stops.join('; '))}"`;
   if (p.kind === 'plan') {
     const actions = from === 'them' ? `<div class="pc-act"><button type="button" class="btn sm" data-plan-in ${data}>I’m in</button> <button type="button" class="btn sm ghost" data-plan-open="${esc(personId)}" data-dest="${esc(dest?.key ?? '')}">Pick places</button></div>` : '';
@@ -154,7 +154,7 @@ function renderModal(): void {
   $('#plList').innerHTML = dest.trips
     .map(
       (t, i) => `<article class="pl">
-      <div class="pl-pic">${sceneSVG(dest.key, i, `${t.name} in ${dest.city}`)}</div>
+      <div class="pl-pic">${pictureHTML(dest.key, i, `${t.name} in ${dest.city}`)}</div>
       <div class="pl-bd"><div class="pl-h"><b>${esc(t.name)}</b><span>${t.days} day${t.days === 1 ? '' : 's'}</span></div>
         <p>${esc(t.text)}</p>
         <div class="pl-stops">${t.stops.map((s) => `<label class="stop"><input type="checkbox" data-stop value="${esc(s)}"><span>${esc(s)}</span></label>`).join('')}</div>

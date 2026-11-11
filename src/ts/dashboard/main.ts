@@ -14,6 +14,7 @@ import { initActions } from './actions';
 import { attachGlobe, initFlight, stageUI } from './flight';
 import { initGlobe } from './globe';
 import { initPlan } from './views/plan';
+import { initPhotoFallback } from './scenes';
 import { state } from './state';
 import { registerRefresh, registerView, initRouter, show, startView } from './router';
 import { hasLoaded, configureSync, startPolling, sync } from './sync';
@@ -75,6 +76,7 @@ async function main(): Promise<void> {
   });
   initFlight();
   initPlan();
+  initPhotoFallback();
 
   configureSync({ changed: renderAll, newMessage: onIncoming });
   await sync();
