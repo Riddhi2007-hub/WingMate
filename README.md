@@ -1,7 +1,7 @@
 # WingMate (working website)
 
 Meet the people on your flight. Sign up, add your flight, see everyone else on it, connect, chat, play. Themed per airline
-(AirAsia and Air India, built from their brand guides).
+(AirAsia, built from its brand guide).
 
 ## Run it
 
@@ -125,7 +125,7 @@ build.mjs      builds dist/ (pages) and server-dist/ (server)
 npm install            # once
 npm run dev            # rebuilds on every save and restarts the server on :3000
 npm run build          # build every brand into dist/<brand>/
-npm run build:airasia  # or just one: build:airindia
+npm run build:airasia
 npm run check          # strict type-check + build
 ```
 
@@ -143,8 +143,6 @@ brands/<brand>/
 - **AirAsia** (`brands/airasia`): AirAsia Red (logo red `#EE2722`), black and white; plum, coral and magenta as secondary colours.
   The red-background version of the circle logo from the style guide. "Arc" artwork (red/black/white only, smile never a frown).
   Uses the word "guests", as the guide asks. Gotham Rounded is proprietary, so the stack falls back to Nunito (loaded from Google Fonts when online).
-- **Air India** (`brands/airindia`): crimson to plum gradient, gold, warm cream. White wordmark with the gold Vista on crimson.
-  Gold "window of possibilities" frame as the artwork. Air India Sans is bespoke, so the stack falls back to Montserrat.
 
 To add an airline: copy a brand folder, replace `assets/logo.png`, edit the files, run `npm run build`.
 

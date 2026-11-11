@@ -1,7 +1,7 @@
 // Build script: TypeScript + CSS + images -> ONE self-contained HTML file per page in dist/.
 //
 //   npm run build                  build every brand into dist/<brand>/
-//   npm run build -- --brand=airasia   build one brand only (airasia, airindia)
+//   npm run build -- --brand=airasia   build one brand only (airasia)
 //   npm run build:min              same, minified
 //   npm start                      build everything, then run the server (http://localhost:3000)
 //   npm run dev                    rebuild on every save and restart the server
@@ -211,8 +211,13 @@ async function buildSite() {
   await buildServer();
   await rm(path.join(root, '.build'), { recursive: true, force: true });
 
+  // the home page goes straight to the first brand's login page (with several brands it lists them instead)
+  const first = built[0].brand.id;
   const links = built.map(({ brand }) => `<li><a href="${brand.id}/login.html">${brand.airline}</a></li>`).join('');
-  await writeFile(path.join(dist, 'index.html'), `<!doctype html><meta charset="utf-8"><title>WingMate</title><body style="font-family:system-ui,sans-serif;max-width:420px;margin:12vh auto;padding:0 20px"><h1>WingMate</h1><p>Open the version for:</p><ul style="line-height:2">${links}</ul></body>`);
+  const home = built.length === 1
+    ? `<!doctype html><meta charset="utf-8"><meta http-equiv="refresh" content="0;url=${first}/login.html"><title>WingMate</title><a href="${first}/login.html">Log in</a>\n`
+    : `<!doctype html><meta charset="utf-8"><title>WingMate</title><body style="font-family:system-ui,sans-serif;max-width:420px;margin:12vh auto;padding:0 20px"><h1>WingMate</h1><p>Open the version for:</p><ul style="line-height:2">${links}</ul></body>`;
+  await writeFile(path.join(dist, 'index.html'), home);
   console.log(`Built ${built.map((b) => b.brand.id).join(', ')} (${built.reduce((n, b) => n + b.pages, 0)} pages) into dist/ in ${Date.now() - started}ms. Run npm start, then open http://localhost:3000`);
 }
 

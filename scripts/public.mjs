@@ -55,7 +55,7 @@ const onOutput = (chunk) => {
   server.on('exit', (code) => { console.log(`Server stopped (${code}).`); tunnel.kill(); process.exit(code ?? 0); });
   const emailOn = Boolean(settings.SMTP_HOST ?? process.env.SMTP_HOST);
   setTimeout(() => {
-    console.log(`\n==================================================================\n  WingMate is online. Share this link:\n\n     ${url}/airasia/login.html\n     ${url}/airindia/login.html\n\n  Keep this window open. Closing it (or sleeping the laptop) takes the site offline,\n  and the link changes next time you start it.\n  ${emailOn ? 'Emails are sent through ' + (settings.SMTP_HOST ?? process.env.SMTP_HOST) + '.' : 'Email is NOT set up: confirmation/reset links are printed in this window (and data/outbox/outbox.txt).\n  Copy the link from there. See .env.example to send real emails.'}\n==================================================================\n`);
+    console.log(`\n==================================================================\n  WingMate is online. Share this link:\n\n     ${url}/airasia/login.html\n\n  Keep this window open. Closing it (or sleeping the laptop) takes the site offline,\n  and the link changes next time you start it.\n  ${emailOn ? 'Emails are sent through ' + (settings.SMTP_HOST ?? process.env.SMTP_HOST) + '.' : 'Email is NOT set up: confirmation/reset links are printed in this window (and data/outbox/outbox.txt).\n  Copy the link from there. See .env.example to send real emails.'}\n==================================================================\n`);
   }, 800);
 };
 tunnel.stdout.on('data', onOutput);
