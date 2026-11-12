@@ -556,3 +556,6 @@ html[data-theme="dark"] .seat.taken{background-color:#3a3a40;border-color:#3a3a4
 .mkt-form textarea{width:100%;font:inherit;padding:10px 12px;border:1px solid var(--line);border-radius:8px;resize:vertical;color:var(--ink)}
 .mkt-two{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 #mktModal .modal-box{max-height:90vh;overflow:auto}
+
+.cur-row{display:flex;align-items:center;gap:10px;margin:8px 0}
+.cur-row select{width:auto;max-width:100%}

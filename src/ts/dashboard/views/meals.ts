@@ -5,6 +5,7 @@
  */
 import { $, closest, esc } from '../../shared/dom';
 import { ApiError, api } from '../../shared/api';
+import { currencyNote, money } from '../../shared/currency';
 import { MEALS, mealById } from '../../shared/meals';
 import { state } from '../state';
 import { save } from '../sync';
@@ -25,7 +26,6 @@ let info: MealState | null = null;
 let picked: string | null = null;
 
 const flightLabel = (f: Flight): string => `${f.number} · ${f.from} → ${f.to} · ${new Date(f.departsAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}`;
-const money = (n: number): string => `MYR ${n}`;
 
 function render(): void {
   $('#mealTabs').innerHTML = flights.length > 1 ? flights.map((f) => `<button type="button" class="chip ${f.key === flightKey ? 'on' : ''}" data-meal-flight="${esc(f.key)}">${esc(flightLabel(f))}</button>`).join('') : '';
@@ -51,7 +51,7 @@ function render(): void {
   $<HTMLButtonElement>('#mealConfirm').disabled = !open || !picked || picked === info.mine;
   $('#mealClear').hidden = !open || !info.mine;
   $('#mealNote').textContent = open
-    ? `Pre-booking closes ${closes}. Sample menu and prices. In the live AirAsia app the meal is added to your booking and paid with it.`
+    ? `Pre-booking closes ${closes}. Sample menu and prices. ${currencyNote()} In the live AirAsia app the meal is added to your booking and paid with it.`
     : 'Pre-booking has closed for this flight. You can still buy on board.';
 }
 
@@ -69,6 +69,10 @@ async function load(): Promise<void> {
 
 const close = (): void => {
   $('#mealModal').hidden = true;
+};
+
+export const redrawMeals = (): void => {
+  if (!$('#mealModal').hidden) render();
 };
 
 export function initMeals(): void {

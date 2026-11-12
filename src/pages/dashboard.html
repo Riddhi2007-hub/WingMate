@@ -133,6 +133,8 @@
       <p class="lead">Small travel agents list trips for the places you are flying to. Ask about one, alone or with your group, and the agent replies here.</p>
     </div>
   </div>
+  <div class="cur-row"><label class="small muted" for="curMkt">Show prices in</label><select id="curMkt" data-currency></select></div>
+  <p class="small muted" id="curNoteMkt" style="margin:-4px 0 12px"></p>
   <div class="chips" id="mktDest" style="margin-bottom:14px"></div>
   <div class="stack" id="mktOffers"></div>
   <div class="card" id="mktAgent" style="margin-top:22px"></div>
@@ -370,6 +372,7 @@
 <div class="modal" id="mealModal" hidden>
   <div class="modal-box meal-box" role="dialog" aria-modal="true" aria-labelledby="mealTitle">
     <div class="seat-head"><div><h3 id="mealTitle">Pre-book your meal</h3><p class="muted small" id="mealFlight"></p></div><button class="btn ghost sm" id="mealCancel" type="button">Close</button></div>
+    <div class="cur-row"><label class="small muted" for="curMeal">Show prices in</label><select id="curMeal" data-currency></select></div>
     <div class="pl-tabs" id="mealTabs"></div>
     <p class="small muted" id="mealMates"></p>
     <div class="meal-list" id="mealList"></div>

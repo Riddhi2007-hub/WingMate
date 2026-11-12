@@ -18,6 +18,7 @@ import { initGroups } from './views/groups';
 import { initSeats } from './views/seats';
 import { initMeals } from './views/meals';
 import { initMarket, loadMarket } from './views/market';
+import { initCurrency } from './currencyUi';
 import { initPhotoFallback } from './scenes';
 import { state } from './state';
 import { registerRefresh, registerView, initRouter, show, startView } from './router';
@@ -85,6 +86,7 @@ async function main(): Promise<void> {
   initSeats();
   initMeals();
   initMarket();
+  initCurrency();
   initPhotoFallback();
 
   configureSync({ changed: renderAll, newMessage: onIncoming });

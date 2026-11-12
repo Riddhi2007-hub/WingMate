@@ -6,6 +6,7 @@
  */
 import { $, closest, esc } from '../../shared/dom';
 import { ApiError, api } from '../../shared/api';
+import { currencyNote, money } from '../../shared/currency';
 import { ALL_DESTINATIONS, destinationByKey, destinationFor } from '../destinations';
 import { INTERESTS } from '../options';
 import { pictureHTML } from '../scenes';
@@ -40,7 +41,6 @@ let data: Market | null = null;
 let selected = ''; // destination key, or '' for all
 let onSubmit: ((form: HTMLFormElement) => Promise<void>) | null = null;
 
-const money = (n: number): string => `MYR ${n.toLocaleString('en-GB')}`;
 const myDests = (): string[] => [...new Set(state.flights.map((f) => destinationFor(f.to)?.key).filter((k): k is string => !!k))];
 
 /** Trips for where I am going first, then the ones that share the most of my interests (once I have chosen them). */
@@ -96,6 +96,7 @@ function renderAgent(): void {
 }
 
 export function renderMarket(): void {
+  $('#curNoteMkt').textContent = currencyNote();
   if (!data) {
     $('#mktOffers').innerHTML = '<p class="muted">Loading trips…</p>';
     return;
