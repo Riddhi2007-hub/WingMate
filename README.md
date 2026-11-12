@@ -3,6 +3,9 @@
 Meet the people on your flight. Sign up, add your flight, see everyone else on it, connect, chat, play. Themed per airline
 (AirAsia, built from its brand guide).
 
+**Try it live:** https://wingmate.riddhi-dev.workers.dev/airasia/login.html (sign up with your email, add a flight, and
+invite a friend to add the same flight number and date to see each other).
+
 ## Run it
 
 **Windows:** double-click **`check-setup.bat`** to see whether your computer is ready (it tells you exactly what to install), then **`start-windows.bat`** (installs the tools on first run, starts the server, opens the browser).
@@ -12,10 +15,10 @@ Meet the people on your flight. Sign up, add your flight, see everyone else on i
 ```bash
 npm install            # once; only dev tools (TypeScript, esbuild)
 npm run check:setup    # optional: checks Node version, port, data folder
-npm start              # builds the pages + server, then serves http://localhost:3000
+npm start              # builds the pages + server, then serves it on port 3000 of your own computer
 ```
 
-Open http://localhost:3000, pick a brand, sign up. To try it with two people use two different browsers (or one normal and one private window),
+Open `http://localhost:3000` in your browser (this address only works on the computer that is running the server), then sign up. To try it with two people use two different browsers (or one normal and one private window),
 add the **same flight number and date** in both, then connect and chat. Data is stored in `data/wingmate.db`.
 There are **no sample guests**: you only see real people who added the same flight.
 
