@@ -71,12 +71,13 @@ export type Tier = (typeof TIERS)[number];
 export const STAGES = ['pre', 'in', 'landed', 'closed'] as const;
 export type Stage = (typeof STAGES)[number];
 
-export const VIEWS = ['home', 'find', 'messages', 'games', 'prefs', 'profile'] as const;
+export const VIEWS = ['home', 'find', 'market', 'messages', 'games', 'prefs', 'profile'] as const;
 export type ViewName = (typeof VIEWS)[number];
 
 export const VIEW_TITLE: Record<ViewName, string> = {
   home: 'Dashboard',
   find: 'Find travel mates',
+  market: 'Trips & agents',
   messages: 'Messages',
   games: 'Games',
   prefs: 'My preferences',

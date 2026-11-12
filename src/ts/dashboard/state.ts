@@ -25,6 +25,8 @@ export interface AppState {
   draft: Prefs;
   /** "Open to connect": whether other guests can see you. */
   visible: boolean;
+  /** Whether the guest has saved their preferences yet. Until they have, people are only suggested, not scored. */
+  prefsSet: boolean;
   /** Connection status by person id. */
   conn: Record<string, Connection | undefined>;
   /** Whether each connected person's chat is still open. */
@@ -61,6 +63,7 @@ export const state: AppState = {
   prefs: clone(DEFAULT_PREFS),
   draft: clone(DEFAULT_PREFS),
   visible: true,
+  prefsSet: false,
   conn: {},
   windows: {},
   chats: {},

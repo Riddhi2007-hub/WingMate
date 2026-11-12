@@ -91,6 +91,8 @@ export interface MatchDetail {
   shared: Interest[];
   /** Per-preference score (0, 0.5 or 1) for the preferences currently counted. */
   hit: Partial<Record<PrefKey, number>>;
+  /** True when the guest has not chosen preferences yet: the person is a suggestion, not a scored match. */
+  suggested?: boolean;
 }
 
 export interface Ranked {

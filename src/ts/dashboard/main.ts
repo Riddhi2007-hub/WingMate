@@ -16,6 +16,8 @@ import { initGlobe } from './globe';
 import { initPlan } from './views/plan';
 import { initGroups } from './views/groups';
 import { initSeats } from './views/seats';
+import { initMeals } from './views/meals';
+import { initMarket, loadMarket } from './views/market';
 import { initPhotoFallback } from './scenes';
 import { state } from './state';
 import { registerRefresh, registerView, initRouter, show, startView } from './router';
@@ -43,6 +45,7 @@ async function main(): Promise<void> {
   // what to run when each tab opens
   registerView('home', renderHome);
   registerView('find', renderFind);
+  registerView('market', () => void loadMarket());
   registerView('messages', onShowMessages);
   registerView('games', renderPlayWith);
   registerView('prefs', renderPrefs);
@@ -80,6 +83,8 @@ async function main(): Promise<void> {
   initPlan();
   initGroups(() => renderAll());
   initSeats();
+  initMeals();
+  initMarket();
   initPhotoFallback();
 
   configureSync({ changed: renderAll, newMessage: onIncoming });

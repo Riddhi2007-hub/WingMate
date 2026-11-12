@@ -89,6 +89,46 @@ export const SCHEMA: string[] = [
   PRIMARY KEY (flight_key, user_id),
   UNIQUE (flight_key, seat)
 )`,
+  `CREATE TABLE IF NOT EXISTS prefs_set (
+  user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  created_at INTEGER NOT NULL
+)`,
+  `CREATE TABLE IF NOT EXISTS meals (
+  flight_key TEXT NOT NULL,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  meal TEXT NOT NULL,
+  created_at INTEGER NOT NULL,
+  PRIMARY KEY (flight_key, user_id)
+)`,
+  `CREATE TABLE IF NOT EXISTS agents (
+  user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  city TEXT NOT NULL,
+  about TEXT NOT NULL,
+  created_at INTEGER NOT NULL
+)`,
+  `CREATE TABLE IF NOT EXISTS offers (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  agent_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  dest TEXT NOT NULL,
+  title TEXT NOT NULL,
+  days INTEGER NOT NULL,
+  price INTEGER NOT NULL,
+  body TEXT NOT NULL,
+  tags TEXT NOT NULL,
+  created_at INTEGER NOT NULL
+)`,
+  `CREATE INDEX IF NOT EXISTS offers_dest ON offers(dest)`,
+  `CREATE TABLE IF NOT EXISTS offer_requests (
+  offer TEXT NOT NULL,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  party INTEGER NOT NULL,
+  note TEXT NOT NULL,
+  reply TEXT,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL,
+  PRIMARY KEY (offer, user_id)
+)`,
   `CREATE TABLE IF NOT EXISTS connections (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   from_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,

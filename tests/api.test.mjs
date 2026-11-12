@@ -325,6 +325,69 @@ try {
     ok('strangers show only as taken seats', r.json.taken.includes(free[2]) && !r.json.mates.some(m => m.seat === free[2]));
     ok('not on the flight, no seat map', (await new Client().call('GET', '/api/seats?flight=' + encodeURIComponent(key))).status === 401);
   }
+  // suggested matches before preferences: the server says whether this guest has chosen preferences yet
+  {
+    const n = new Client(); await signup(n, 'Tara');
+    r = await n.call('GET', '/api/sync'); ok('a new guest has not chosen preferences yet', r.json.me.prefsSet === false);
+    await n.call('PUT', '/api/prefs', { prefs: { type: 'Leisure', why: 'meet', pers: 'Ambivert', interests: ['Shopping'], seat: 'Aisle' } });
+    r = await n.call('GET', '/api/sync'); ok('saving preferences is remembered', r.json.me.prefsSet === true);
+  }
+  // meals: pre-book a meal until the cut-off, see travel mates' choices
+  {
+    const m1 = new Client(), m2 = new Client();
+    await signup(m1, 'Uma'); await signup(m2, 'Vik');
+    const d = soon(150); const leg = { number: 'AK 777', date: dateStr(d), from: 'KUL', to: 'BKK', departsAt: d, landsAt: d + 2 * 3600e3 };
+    for (const c of [m1, m2]) await c.call('PUT', '/api/flight', leg);
+    const key = 'AK 777|' + dateStr(d);
+    const vik = (await m1.call('GET', '/api/sync')).json.people.find(p => p.name === 'Vik T.').id;
+    await m1.call('POST', '/api/connections', { to: vik });
+    const uma = (await m2.call('GET', '/api/sync')).json.people.find(p => p.name === 'Uma T.').id;
+    await m2.call('POST', '/api/connections/respond', { from: uma, accept: true });
+    r = await m1.call('GET', '/api/meals?flight=' + encodeURIComponent(key)); ok('meal pre-booking is open and empty', r.status === 200 && r.json.open === true && r.json.mine === null);
+    ok('a made-up meal is refused', (await m1.call('PUT', '/api/meals', { flight: key, meal: 'caviar' })).status === 400);
+    ok('pick a meal', (await m1.call('PUT', '/api/meals', { flight: key, meal: 'veg-curry' })).json.meal === 'veg-curry');
+    await m2.call('PUT', '/api/meals', { flight: key, meal: 'nasi-lemak' });
+    r = await m1.call('GET', '/api/meals?flight=' + encodeURIComponent(key));
+    ok('you see your meal and your travel mate\'s', r.json.mine === 'veg-curry' && r.json.mates.length === 1 && r.json.mates[0].meal === 'nasi-lemak' && r.json.mates[0].name === 'Vik T.');
+    ok('changing a meal replaces it', (await m1.call('PUT', '/api/meals', { flight: key, meal: 'pasta' })).json.meal === 'pasta');
+    ok('a meal can be cleared', (await m1.call('PUT', '/api/meals', { flight: key, meal: null })).json.meal === null);
+    ok('someone not on the flight cannot read it', (await new Client().call('GET', '/api/meals?flight=' + encodeURIComponent(key))).status === 401);
+    const d2 = soon(2); const late = { number: 'AK 778', date: dateStr(d2), from: 'KUL', to: 'BKK', departsAt: d2, landsAt: d2 + 2 * 3600e3 };
+    await m1.call('PUT', '/api/flight', late);
+    r = await m1.call('PUT', '/api/meals', { flight: 'AK 778|' + dateStr(d2), meal: 'pasta' }); ok('pre-booking closes before departure', r.status === 409 && r.json.error === 'meal_closed');
+  }
+  // marketplace: agents list trips, guests ask, agents reply
+  {
+    const ag = new Client(), g1 = new Client(), g2 = new Client();
+    await signup(ag, 'Agnes'); await signup(g1, 'Gus'); await signup(g2, 'Gail');
+    r = await g1.call('GET', '/api/market'); ok('the marketplace always has sample trips', r.status === 200 && r.json.offers.some(o => o.sample) && r.json.agent === null);
+    ok('only agents can list trips', (await g1.call('POST', '/api/market/offers', { dest: 'bali', title: 'Beach week', days: 5, price: 900, text: 'Sun and sea for a week.', tags: ['Wellness & spas'] })).status === 403);
+    ok('register as an agent', (await ag.call('POST', '/api/market/agent', { name: 'Bali Bound Tours', city: 'Denpasar', about: 'A small family agency run from Denpasar.' })).status === 200);
+    ok('a bad destination is refused', (await ag.call('POST', '/api/market/offers', { dest: 'atlantis', title: 'Beach week', days: 5, price: 900, text: 'Sun and sea for a week.', tags: ['Wellness & spas'] })).status === 400);
+    ok('a bad price is refused', (await ag.call('POST', '/api/market/offers', { dest: 'bali', title: 'Beach week', days: 5, price: 0, text: 'Sun and sea for a week.', tags: ['Wellness & spas'] })).status === 400);
+    r = await ag.call('POST', '/api/market/offers', { dest: 'bali', title: 'Beach week', days: 5, price: 900, text: 'Sun and sea for a week.', tags: ['Wellness & spas'] });
+    ok('list a trip', r.status === 200 && /^o\d+$/.test(r.json.id)); const oid = r.json.id;
+    r = await g1.call('GET', '/api/market'); const mine = r.json.offers.find(o => o.id === oid);
+    ok('guests see the trip with the agent name', mine && mine.agent === 'Bali Bound Tours' && mine.destCity === 'Bali' && mine.sample === false);
+    ok('a guest asks about the trip', (await g1.call('POST', '/api/market/request', { offer: oid, party: 3, note: 'Two adults and a child.' })).status === 200);
+    ok('asking again updates, not duplicates', (await g1.call('POST', '/api/market/request', { offer: oid, party: 4, note: 'Two adults and two children.' })).status === 200);
+    ok('a sample trip can be asked about too', (await g1.call('POST', '/api/market/request', { offer: 's4', party: 1, note: '' })).status === 200);
+    ok('an unknown trip is refused', (await g1.call('POST', '/api/market/request', { offer: 'o99999', party: 1, note: '' })).status === 404);
+    ok('party size is checked', (await g2.call('POST', '/api/market/request', { offer: oid, party: 40, note: '' })).status === 400);
+    ok('agents cannot ask about their own trip', (await ag.call('POST', '/api/market/request', { offer: oid, party: 1, note: '' })).status === 400);
+    r = await ag.call('GET', '/api/market');
+    ok('the agent sees one request with first name and last initial only', r.json.inbox.length === 1 && r.json.inbox[0].who === 'Gus T.' && r.json.inbox[0].party === 4 && !JSON.stringify(r.json.inbox).includes('@'));
+    ok('a guest cannot read the agent inbox', (await g2.call('GET', '/api/market')).json.inbox.length === 0);
+    const gus = r.json.inbox[0].user;
+    ok('only the agent can reply', (await g2.call('POST', '/api/market/reply', { offer: oid, user: gus, reply: 'Hi' })).status === 404);
+    ok('the agent replies', (await ag.call('POST', '/api/market/reply', { offer: oid, user: gus, reply: 'Yes, we can do that for four. I will send a quote.' })).status === 200);
+    r = await g1.call('GET', '/api/market'); const req = r.json.requests.find(q => q.offer === oid);
+    ok('the guest sees the reply', req && req.reply.startsWith('Yes, we can') && req.party === 4);
+    ok('a guest can withdraw a request', (await g1.call('DELETE', '/api/market/request?offer=' + oid)).status === 200);
+    ok('others cannot remove the trip', (await g2.call('DELETE', '/api/market/offers?id=' + oid)).status === 404);
+    ok('the agent removes the trip', (await ag.call('DELETE', '/api/market/offers?id=' + oid)).status === 200);
+    r = await g1.call('GET', '/api/market'); ok('it is gone for guests', !r.json.offers.some(o => o.id === oid));
+  }
 } finally {
   try { await stop(); } catch {}
   rmSync(dir, { recursive: true, force: true });

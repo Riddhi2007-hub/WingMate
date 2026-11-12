@@ -15,6 +15,8 @@ const FILTER_SELECTS: Record<FilterKey, string> = {
   seat: '#fSeat',
 };
 
+const cap = (text: string): string => text.charAt(0).toUpperCase() + text.slice(1);
+
 export function renderFind(): void {
   const { criteria, filters, interestFilter } = state;
 
@@ -27,6 +29,11 @@ export function renderFind(): void {
     const on = interestFilter.includes(i);
     return `<button type="button" class="chip ${on ? 'on' : ''}" data-int="${esc(i)}" aria-pressed="${on}"><span class="tick">✓</span>${esc(i)}</button>`;
   }).join('');
+
+  // until the guest has chosen preferences there is nothing to rank by, so say so and hide the percentage controls
+  $('#rankRow').hidden = !state.prefsSet;
+  $('#rankHint').hidden = !state.prefsSet;
+  $('#findLead').textContent = state.prefsSet ? `${cap(BRAND.guests)} on your flight, ranked by how closely their preferences match yours.` : `${cap(BRAND.guests)} on your flight, suggested for you. Choose your preferences to rank them by how well they match.`;
 
   // filter dropdowns
   for (const key of FILTER_KEYS) {
@@ -61,7 +68,8 @@ export function renderFind(): void {
   if ($<HTMLSelectElement>('#sort').value === 'name') list.sort((a, b) => a.p.name.localeCompare(b.p.name));
 
   $('#resultCount').textContent = `${list.length} ${list.length === 1 ? BRAND.guest : BRAND.guests} ${state.flights.length > 1 ? `on your ${state.flights.length} flights` : state.flight ? `on ${state.flight.number} to ${state.flight.to}` : '(add your flight to see who is aboard)'}`;
-  box.innerHTML = list.length
+  const nudge = state.prefsSet ? '' : `<div class="card nudge" style="grid-column:1/-1"><div><b>These people are on your flight.</b><p class="muted small">You can say hello now. Tell us what you like (about 30 seconds) and we will show how well each person matches you.</p></div><a class="btn sm" href="#prefs">Sharpen my matches</a></div>`;
+  box.innerHTML = nudge + (list.length
     ? list
         .map(({ p, s }) => {
           const chips = p.interests
@@ -73,7 +81,7 @@ export function renderFind(): void {
           return `
     <article class="mate">
       <div class="mate-top">${avatar(p)}<div class="nm"><b>${esc(p.name)}</b><span>${esc(p.type)} trip</span></div>
-        <div class="ring" style="--p:${s.pct}" title="${s.pct}% match"><span>${s.pct}%</span></div></div>
+        ${s.suggested ? '<span class="chip soft" title="Choose your preferences to see how well you match">Suggested</span>' : `<div class="ring" style="--p:${s.pct}" title="${s.pct}% match"><span>${s.pct}%</span></div>`}</div>
       ${flightTags(p)}
       <p class="bio">${esc(p.bio)}</p>
       <div class="chips">${chips}</div>
@@ -86,7 +94,7 @@ export function renderFind(): void {
     </article>`;
         })
         .join('')
-    : `<div class="card empty" style="grid-column:1/-1"><h3>No one matches those filters</h3><p style="margin-bottom:14px">Try setting one of the filters back to “Any”, or clear them all.</p><button class="btn" data-act="clearFilters">Clear filters</button></div>`;
+    : `<div class="card empty" style="grid-column:1/-1"><h3>No one matches those filters</h3><p style="margin-bottom:14px">Try setting one of the filters back to “Any”, or clear them all.</p><button class="btn" data-act="clearFilters">Clear filters</button></div>`);
 }
 
 export function initFind(): void {

@@ -527,3 +527,32 @@ html[data-theme="dark"] .seat.std{background:#24303f;border-color:#4f6584;color:
 html[data-theme="dark"] .seat.hot{background:#3b1a1c;color:#ffb3ad}
 html[data-theme="dark"] .seat.taken{background-color:#3a3a40;border-color:#3a3a40}
 .conv.req{flex-wrap:wrap}.conv.req .nm{flex:1;min-width:0}.conv.req>span:last-child{flex-basis:100%;display:flex;gap:8px;padding-left:54px}
+
+/* suggested matches: a gentle nudge to choose preferences */
+.nudge{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;margin-top:12px;padding:14px 16px;border-radius:12px;background:var(--tint);color:var(--tint-ink)}
+.nudge p{margin:2px 0 0}
+.card.nudge{margin-top:0}
+
+/* meal pre-booking */
+.meal-box{width:min(680px,100%)}
+.meal-list{display:grid;gap:10px;margin:12px 0;max-height:52vh;overflow:auto;padding-right:4px}
+.meal{display:flex;justify-content:space-between;gap:14px;align-items:flex-start;text-align:left;width:100%;padding:14px 16px;border:1.5px solid var(--line);border-radius:12px;background:var(--card, #fff);color:inherit;font:inherit;cursor:pointer}
+.meal:hover:not(:disabled){border-color:var(--brand)}
+.meal.on{border-color:var(--brand);box-shadow:0 0 0 2px color-mix(in srgb,var(--brand) 25%,transparent)}
+.meal:disabled{opacity:.6;cursor:not-allowed}
+.meal .mn{display:grid;gap:4px}
+.meal .mn>span{font-size:14px;opacity:.8}
+.meal .mn .chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px;opacity:1}
+.meal .mp{white-space:nowrap;font-weight:800;display:grid;justify-items:end;gap:4px}
+.meal .mp i{font-style:normal;color:#fff;background:var(--brand);border-radius:50%;width:22px;height:22px;display:grid;place-items:center;font-size:13px}
+
+/* trips & agents marketplace */
+.mkt-price{font-size:15px;color:var(--ink)}
+.mkt-reply{padding:10px 12px;border-radius:10px;background:var(--tint);color:var(--tint-ink)}
+.mkt-reply p{margin:2px 0 0;font-size:14px;color:inherit}
+.mkt-ask{display:flex;justify-content:space-between;align-items:flex-start;gap:14px;padding:12px 0;border-top:1px solid var(--line)}
+.mkt-form{display:grid;gap:12px;margin-top:12px}
+.mkt-form .fld{display:grid;gap:6px}
+.mkt-form textarea{width:100%;font:inherit;padding:10px 12px;border:1px solid var(--line);border-radius:8px;resize:vertical;color:var(--ink)}
+.mkt-two{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+#mktModal .modal-box{max-height:90vh;overflow:auto}

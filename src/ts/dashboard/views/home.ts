@@ -20,9 +20,10 @@ export function renderHome(): void {
   $('#whoAv').textContent = (user.first || 'A').charAt(0).toUpperCase();
 
   const all = ranked();
-  $('#statMatches').textContent = String(visible ? all.filter((x) => x.s.pct >= 70).length : 0);
+  $('#statMatches').textContent = state.prefsSet ? String(visible ? all.filter((x) => x.s.pct >= 70).length : 0) : String(visible ? all.length : 0);
+  $('#statMatchesLabel').textContent = state.prefsSet ? 'strong matches (70%+) on your flight' : 'people on your flight, suggested for you';
   $('#statConns').textContent = String(Object.values(state.conn).filter((v) => v === 'connected').length);
-  $('#statPrefs').textContent = `${filledCount(prefs)}/5`;
+  $('#statPrefs').textContent = state.prefsSet ? `${filledCount(prefs)}/5` : '0/5';
 
   $('#topMatches').innerHTML = !state.flight
     ? `<div class="empty"><h3>Add your flight first</h3><p style="margin-bottom:14px">Tell us which flight you are on and you will see the other ${BRAND.guests} who have added it.</p><button class="btn" data-act="addFlight">Add my flight</button></div>`
@@ -34,9 +35,14 @@ export function renderHome(): void {
         .slice(0, 3)
         .map(
           ({ p, s }) =>
-            `<div class="mate-compact">${avatar(p)}<div class="nm"><b>${esc(p.name)}</b><span>${esc(p.type)} trip · ${esc(GOAL_LABEL[p.why])}</span>${flightTags(p)}</div><span class="chip soft">${s.pct}% match</span>${connectButton(p.id, true)}</div>`,
+            `<div class="mate-compact">${avatar(p)}<div class="nm"><b>${esc(p.name)}</b><span>${esc(p.type)} trip · ${esc(GOAL_LABEL[p.why])}</span>${flightTags(p)}</div><span class="chip soft">${s.suggested ? 'Suggested' : `${s.pct}% match`}</span>${connectButton(p.id, true)}</div>`,
         )
         .join('');
+
+  if (!state.prefsSet && state.flight && visible && all.length) {
+    $('#topMatches').innerHTML += `<div class="nudge"><div><b>Want better matches?</b><p class="muted small">Tell us what you like (about 30 seconds) and we will show how well each person matches you.</p></div><a class="btn sm" href="#prefs">Sharpen my matches</a></div>`;
+  }
+  $('#topTitle').textContent = state.prefsSet ? 'Top matches for you' : 'People on your flight';
 
   const rows: Array<[string, string]> = [
     ['Travel purpose', prefs.type],
@@ -45,9 +51,9 @@ export function renderHome(): void {
     ['Interests', prefs.interests.length ? prefs.interests.join(', ') : 'None selected'],
     ['Seating preference', prefs.seat],
   ];
-  $('#prefSummary').innerHTML = rows
-    .map(([label, value]) => `<div class="sum-row"><span>${label}</span><b>${esc(value)}</b></div>`)
-    .join('');
+  $('#prefSummary').innerHTML = state.prefsSet
+    ? rows.map(([label, value]) => `<div class="sum-row"><span>${label}</span><b>${esc(value)}</b></div>`).join('')
+    : `<p class="muted">You have not chosen any yet. Your matches are only suggestions until you do.</p><a class="btn sm" href="#prefs" style="margin-top:10px">Choose my preferences</a>`;
 
   renderSuggestions();
 }

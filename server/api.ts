@@ -12,6 +12,9 @@ import type { Db, Runtime } from './runtime';
 import { stmt } from './runtime';
 import * as v from './validate';
 import { simulatedTaken, validSeat } from './seats';
+import { MEAL_CLOSES_BEFORE_MS, mealById } from '../src/ts/shared/meals';
+import { MAX_OFFERS_PER_AGENT, SAMPLES, agentInput, offerInput, requestInput, sampleDto, type OfferDto } from './market';
+import { destinationByKey, destinationFor } from '../src/ts/dashboard/destinations';
 import { MAX_MEMBERS, groupName, groupsFor, inviteAll, invitable, membership } from './groups';
 import { KINDS, applyMove, gameDto, hangmanWord, initialState, startClock, type GameRow, type Kind } from './games';
 
@@ -23,6 +26,22 @@ const userPrefs = (u: UserRow): Prefs => ({
   pers: u.p_pers as Prefs['pers'],
   interests: JSON.parse(u.p_interests) as Prefs['interests'],
   seat: u.p_seat as Prefs['seat'],
+});
+
+interface OfferRow { id: number; agent_id: number; dest: string; title: string; days: number; price: number; body: string; tags: string; created_at: number; name: string; city: string }
+const offerDto = (r: OfferRow, me: number): OfferDto => ({
+  id: `o${r.id}`,
+  sample: false,
+  agent: r.name,
+  city: r.city,
+  dest: r.dest,
+  destCity: destinationByKey(r.dest)?.city ?? r.dest,
+  title: r.title,
+  days: r.days,
+  price: r.price,
+  text: r.body,
+  tags: JSON.parse(r.tags) as OfferDto['tags'],
+  mine: r.agent_id === me,
 });
 
 const displayName = (u: UserRow): string => (u.last ? `${u.first} ${u.last.charAt(0).toUpperCase()}.` : u.first);
@@ -87,7 +106,7 @@ function meDto(u: UserRow) {
   };
 }
 
-/** A fixed handful of queries however many people are on the flight (Cloudflare's free plan caps queries per request). */
+/** A fixed handful of queries however many people are on the flight (Cloudflare caps queries per request). */
 async function peopleFor(db: Db, me: UserRow, now: number) {
   const blockRows = await db.all<{ blocker_id: number; blocked_id: number }>('SELECT blocker_id, blocked_id FROM blocks WHERE blocker_id = ? OR blocked_id = ?', me.id, me.id);
   const blocked = new Set(blockRows.map((b) => (b.blocker_id === me.id ? b.blocked_id : b.blocker_id)));
@@ -190,7 +209,7 @@ async function syncPayload(db: Db, me: UserRow, after: number, gafter = 0) {
   const current = flights.find((f) => f.lands_at > now) ?? flights[flights.length - 1];
   return {
     now,
-    me: meDto(me),
+    me: { ...meDto(me), prefsSet: !!(await db.get('SELECT 1 AS x FROM prefs_set WHERE user_id = ?', me.id)) },
     flight: flightDto(current),
     flights: flights.map((f) => flightDto(f)),
     people,
@@ -382,7 +401,10 @@ const routes: Record<string, Handler> = {
   async 'PUT /api/prefs'(ctx) {
     const me = requireUser(ctx);
     const p = v.prefs((await readJson(ctx.request)).prefs);
-    await ctx.db.run('UPDATE users SET p_type=?, p_why=?, p_pers=?, p_interests=?, p_seat=? WHERE id=?', p.type, p.why, p.pers, JSON.stringify(p.interests), p.seat, me.id);
+    await ctx.db.batch([
+      stmt('UPDATE users SET p_type=?, p_why=?, p_pers=?, p_interests=?, p_seat=? WHERE id=?', p.type, p.why, p.pers, JSON.stringify(p.interests), p.seat, me.id),
+      stmt('INSERT OR IGNORE INTO prefs_set (user_id, created_at) VALUES (?, ?)', me.id, Date.now()),
+    ]);
     return ok();
   },
 
@@ -452,6 +474,7 @@ const routes: Record<string, Handler> = {
     await ctx.db.batch([
       key ? stmt('DELETE FROM user_flights WHERE user_id = ? AND flight_key = ?', me.id, key) : stmt('DELETE FROM user_flights WHERE user_id = ?', me.id),
       key ? stmt('DELETE FROM seats WHERE user_id = ? AND flight_key = ?', me.id, key) : stmt('DELETE FROM seats WHERE user_id = ?', me.id),
+      key ? stmt('DELETE FROM meals WHERE user_id = ? AND flight_key = ?', me.id, key) : stmt('DELETE FROM meals WHERE user_id = ?', me.id),
       stmt(SET_FIRST_FLIGHT, me.id),
     ]);
     return ok();
@@ -589,6 +612,153 @@ const routes: Record<string, Handler> = {
       { sql: 'INSERT INTO seats (flight_key, user_id, seat, created_at) VALUES (?, ?, ?, ?)', params: [key, me.id, seat, Date.now()] },
     ]);
     return ok({ seat });
+  },
+
+  // ------------------------------------------------------------ meals (pre-booking)
+
+  async 'GET /api/meals'(ctx) {
+    const me = requireUser(ctx);
+    const { db } = ctx;
+    const key = ctx.query.get('flight') ?? '';
+    const f = await db.get<FlightRow>('SELECT f.* FROM flights f JOIN user_flights uf ON uf.flight_key = f.key WHERE uf.user_id = ? AND f.key = ?', me.id, key);
+    if (!f) throw new HttpError(404, 'not_found', 'You are not on that flight.');
+    const rows = await db.all<{ user_id: number; meal: string; first: string; last: string }>(
+      'SELECT m.user_id, m.meal, u.first, u.last FROM meals m JOIN users u ON u.id = m.user_id WHERE m.flight_key = ?',
+      key,
+    );
+    const conns = await db.all<{ other: number }>(
+      "SELECT CASE WHEN from_id = ? THEN to_id ELSE from_id END AS other FROM connections WHERE status = 'connected' AND (from_id = ? OR to_id = ?)",
+      me.id, me.id, me.id,
+    );
+    const friends = new Set(conns.map((c) => c.other));
+    const closesAt = f.departs_at - MEAL_CLOSES_BEFORE_MS;
+    return ok({
+      flight: key,
+      mine: rows.find((r) => r.user_id === me.id)?.meal ?? null,
+      mates: rows.filter((r) => friends.has(r.user_id)).map((r) => ({ id: String(r.user_id), name: r.last ? `${r.first} ${r.last.charAt(0)}.` : r.first, meal: r.meal })),
+      closesAt,
+      open: Date.now() < closesAt,
+    });
+  },
+
+  async 'PUT /api/meals'(ctx) {
+    const me = requireUser(ctx);
+    const { db } = ctx;
+    await rateLimit(db, `meal:${me.id}`, 60, HOUR);
+    const b = await readJson(ctx.request);
+    const key = typeof b.flight === 'string' ? b.flight : '';
+    const f = await db.get<FlightRow>('SELECT f.* FROM flights f JOIN user_flights uf ON uf.flight_key = f.key WHERE uf.user_id = ? AND f.key = ?', me.id, key);
+    if (!f) throw new HttpError(404, 'not_found', 'You are not on that flight.');
+    if (Date.now() >= f.departs_at - MEAL_CLOSES_BEFORE_MS) throw new HttpError(409, 'meal_closed', 'Meal pre-booking for this flight has closed.');
+    if (b.meal === null) {
+      await db.run('DELETE FROM meals WHERE flight_key = ? AND user_id = ?', key, me.id);
+      return ok({ meal: null });
+    }
+    const meal = mealById(b.meal);
+    if (!meal) throw bad('Choose a meal from the menu.', 'meal');
+    await db.batch([
+      stmt('DELETE FROM meals WHERE flight_key = ? AND user_id = ?', key, me.id),
+      stmt('INSERT INTO meals (flight_key, user_id, meal, created_at) VALUES (?, ?, ?, ?)', key, me.id, meal.id, Date.now()),
+    ]);
+    return ok({ meal: meal.id });
+  },
+
+  // ------------------------------------------------------------ agent marketplace
+
+  async 'GET /api/market'(ctx) {
+    const me = requireUser(ctx);
+    const { db } = ctx;
+    const rows = await db.all<OfferRow>('SELECT o.*, a.name, a.city FROM offers o JOIN agents a ON a.user_id = o.agent_id ORDER BY o.id DESC LIMIT 200');
+    const offers: OfferDto[] = [...rows.map((r) => offerDto(r, me.id)), ...SAMPLES.map(sampleDto)];
+    const agent = (await db.get<{ name: string; city: string; about: string }>('SELECT name, city, about FROM agents WHERE user_id = ?', me.id)) ?? null;
+    const mine = await db.all<{ offer: string; party: number; note: string; reply: string | null; created_at: number; updated_at: number }>(
+      'SELECT offer, party, note, reply, created_at, updated_at FROM offer_requests WHERE user_id = ? ORDER BY created_at DESC LIMIT 50', me.id,
+    );
+    const requests = mine.map((r) => ({ offer: r.offer, title: offers.find((o) => o.id === r.offer)?.title ?? 'A trip that is no longer listed', party: r.party, note: r.note, reply: r.reply, at: r.created_at, sample: r.offer.startsWith('s') }));
+    let inbox: unknown[] = [];
+    const demand: Record<string, number> = {};
+    if (agent) {
+      const asks = await db.all<{ offer: string; user_id: number; party: number; note: string; reply: string | null; created_at: number; first: string; last: string }>(
+        "SELECT r.offer, r.user_id, r.party, r.note, r.reply, r.created_at, u.first, u.last FROM offer_requests r JOIN users u ON u.id = r.user_id WHERE r.offer IN (SELECT 'o' || id FROM offers WHERE agent_id = ?) ORDER BY r.created_at DESC LIMIT 100", me.id,
+      );
+      inbox = asks.map((r) => ({ offer: r.offer, title: offers.find((o) => o.id === r.offer)?.title ?? '', user: String(r.user_id), who: r.last ? `${r.first} ${r.last.charAt(0).toUpperCase()}.` : r.first, party: r.party, note: r.note, reply: r.reply, at: r.created_at }));
+      // how many guests are flying to each place right now (a number only, never who)
+      const flying = await db.all<{ code: string; n: number }>('SELECT f.to_code AS code, COUNT(DISTINCT uf.user_id) AS n FROM user_flights uf JOIN flights f ON f.key = uf.flight_key WHERE f.lands_at > ? GROUP BY f.to_code', Date.now());
+      for (const r of flying) {
+        const key = destinationFor(r.code)?.key;
+        if (key) demand[key] = (demand[key] ?? 0) + r.n;
+      }
+    }
+    return ok({ offers, agent, requests, inbox, demand });
+  },
+
+  async 'POST /api/market/agent'(ctx) {
+    const me = requireUser(ctx);
+    await rateLimit(ctx.db, `agent:${me.id}`, 10, HOUR);
+    const a = agentInput(await readJson(ctx.request));
+    await ctx.db.run('INSERT INTO agents (user_id, name, city, about, created_at) VALUES (?, ?, ?, ?, ?) ON CONFLICT(user_id) DO UPDATE SET name = excluded.name, city = excluded.city, about = excluded.about', me.id, a.name, a.city, a.about, Date.now());
+    return ok();
+  },
+
+  async 'POST /api/market/offers'(ctx) {
+    const me = requireUser(ctx);
+    const { db } = ctx;
+    if (!(await db.get('SELECT 1 AS x FROM agents WHERE user_id = ?', me.id))) throw new HttpError(403, 'forbidden', 'Register as a travel agent first.');
+    await rateLimit(db, `offer:${me.id}`, 20, HOUR);
+    const o = offerInput(await readJson(ctx.request));
+    const count = await db.get<{ n: number }>('SELECT COUNT(*) AS n FROM offers WHERE agent_id = ?', me.id);
+    if ((count?.n ?? 0) >= MAX_OFFERS_PER_AGENT) throw bad(`You can list up to ${MAX_OFFERS_PER_AGENT} trips. Remove one first.`);
+    const id = (await db.run('INSERT INTO offers (agent_id, dest, title, days, price, body, tags, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)', me.id, o.dest, o.title, o.days, o.price, o.body, JSON.stringify(o.tags), Date.now())).id;
+    return ok({ id: `o${id}` });
+  },
+
+  async 'DELETE /api/market/offers'(ctx) {
+    const me = requireUser(ctx);
+    const id = Number((ctx.query.get('id') ?? '').replace(/^o/, ''));
+    if (!Number.isInteger(id)) throw bad('Unknown trip.');
+    const own = await ctx.db.get('SELECT 1 AS x FROM offers WHERE id = ? AND agent_id = ?', id, me.id);
+    if (!own) throw new HttpError(404, 'not_found', 'That trip is not yours.');
+    await ctx.db.batch([stmt('DELETE FROM offer_requests WHERE offer = ?', `o${id}`), stmt('DELETE FROM offers WHERE id = ?', id)]);
+    return ok();
+  },
+
+  async 'POST /api/market/request'(ctx) {
+    const me = requireUser(ctx);
+    const { db } = ctx;
+    await rateLimit(db, `mreq:${me.id}`, 30, HOUR);
+    const r = requestInput(await readJson(ctx.request));
+    if (r.offer.startsWith('s')) {
+      if (!SAMPLES.some((s) => s.id === r.offer)) throw new HttpError(404, 'not_found', 'That trip is no longer listed.');
+    } else {
+      const id = Number(r.offer.replace(/^o/, ''));
+      const row = Number.isInteger(id) ? await db.get<{ agent_id: number }>('SELECT agent_id FROM offers WHERE id = ?', id) : undefined;
+      if (!row) throw new HttpError(404, 'not_found', 'That trip is no longer listed.');
+      if (row.agent_id === me.id) throw bad('This is your own listing.');
+    }
+    const now = Date.now();
+    await db.run('INSERT INTO offer_requests (offer, user_id, party, note, reply, created_at, updated_at) VALUES (?, ?, ?, ?, NULL, ?, ?) ON CONFLICT(offer, user_id) DO UPDATE SET party = excluded.party, note = excluded.note, updated_at = excluded.updated_at', r.offer, me.id, r.party, r.note, now, now);
+    return ok();
+  },
+
+  async 'DELETE /api/market/request'(ctx) {
+    const me = requireUser(ctx);
+    await ctx.db.run('DELETE FROM offer_requests WHERE offer = ? AND user_id = ?', ctx.query.get('offer') ?? '', me.id);
+    return ok();
+  },
+
+  async 'POST /api/market/reply'(ctx) {
+    const me = requireUser(ctx);
+    const { db } = ctx;
+    await rateLimit(db, `mreply:${me.id}`, 60, HOUR);
+    const b = await readJson(ctx.request);
+    const offer = typeof b.offer === 'string' ? b.offer : '';
+    const id = Number(offer.replace(/^o/, ''));
+    const own = Number.isInteger(id) && offer.startsWith('o') ? await db.get('SELECT 1 AS x FROM offers WHERE id = ? AND agent_id = ?', id, me.id) : undefined;
+    if (!own) throw new HttpError(404, 'not_found', 'That trip is not yours.');
+    const text = v.str(b.reply, 'reply', 1, 300);
+    const res = await db.run('UPDATE offer_requests SET reply = ?, updated_at = ? WHERE offer = ? AND user_id = ?', text, Date.now(), offer, Number(b.user));
+    if (!res.changes) throw new HttpError(404, 'not_found', 'That request is gone.');
+    return ok();
   },
 
   async 'POST /api/groups'(ctx) {

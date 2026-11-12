@@ -31,8 +31,19 @@ export function score(person: Person, me: Prefs): MatchDetail {
   return { pct: total ? Math.round((got / total) * 100) : 0, shared, hit };
 }
 
-/** Everyone on the flight, best match first (ties sorted by name). */
+/**
+ * Everyone on the flight, best match first (ties sorted by name).
+ * Before the guest has chosen preferences there is nothing to score, so people are suggested using only what we
+ * already know: the more flights you share (a layover counts twice), the higher they are.
+ */
 export function ranked(): Ranked[] {
+  if (!state.prefsSet) {
+    const mine = new Set(state.flights.map((f) => f.key));
+    const shared = (p: Person): number => p.flights.filter((f) => mine.has(f.key)).length;
+    return getPeople()
+      .map((p) => ({ p, s: { pct: 0, shared: [], hit: {}, suggested: true } as MatchDetail }))
+      .sort((a, b) => shared(b.p) - shared(a.p) || a.p.name.localeCompare(b.p.name));
+  }
   return getPeople().map((p) => ({ p, s: score(p, state.prefs) })).sort(
     (a, b) => b.s.pct - a.s.pct || a.p.name.localeCompare(b.p.name),
   );

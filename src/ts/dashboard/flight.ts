@@ -69,6 +69,7 @@ export function stageUI(): void {
     $('#flightBtn').textContent = 'Add my flight';
     $('#addLegBtn').hidden = true;
     $('#seatBtn').hidden = true;
+    $('#mealBtn').hidden = true;
     $('#legs').hidden = true;
     return;
   }
@@ -89,6 +90,7 @@ export function stageUI(): void {
   $('#flightBtn').textContent = 'Change flight';
   $('#addLegBtn').hidden = state.flights.length >= MAX_FLIGHTS;
   $('#seatBtn').hidden = false;
+  $('#mealBtn').hidden = false;
   renderLegs();
 }
 

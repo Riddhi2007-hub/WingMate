@@ -101,3 +101,6 @@ html[data-theme="dark"] .skr-palette{border-color:var(--line)}
 html[data-theme="dark"] .skr-input{border-color:var(--line)}
 html[data-theme="dark"] .gc-row{background:var(--surface-2)}
 html[data-theme="dark"] .gc-row.invite{background:var(--tint)}
+
+html[data-theme="dark"] :where(.meal,.mkt-form textarea){background-color:var(--surface);color:var(--ink)}
+html[data-theme="dark"] .mkt-reply{background:var(--surface-2)}

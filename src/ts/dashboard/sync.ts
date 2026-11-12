@@ -28,6 +28,8 @@ interface SyncDto {
     email: string;
     bio: string;
     visible: boolean;
+    /** Whether the guest has ever saved their preferences (until then, matches are only suggestions). */
+    prefsSet: boolean;
     prefs: Prefs;
     criteria: Record<PrefKey, boolean>;
     saveData: boolean;
@@ -93,6 +95,7 @@ function apply(dto: SyncDto): boolean {
     state.user = { first: dto.me.first, last: dto.me.last, email: dto.me.email, bio: dto.me.bio };
     state.visible = dto.me.visible;
     state.prefs = dto.me.prefs;
+    state.prefsSet = dto.me.prefsSet;
     if (first) state.draft = JSON.parse(JSON.stringify(dto.me.prefs)) as Prefs;
     state.criteria = { ...state.criteria, ...dto.me.criteria };
     state.saveData = dto.me.saveData;
