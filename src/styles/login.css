@@ -4,3 +4,27 @@
 .label-row a:hover{text-decoration:underline}
 .banner{display:none;padding:11px 14px;border-radius:var(--radius);background:#fbeaea;border:1px solid var(--saffron);color:#7d1118;font-size:14px;line-height:1.4}
 .banner.show{display:block}
+
+/* ---------- after login: a plane flies across and the welcome appears ---------- */
+.fly{position:fixed;inset:0;z-index:100;overflow:hidden;display:grid;place-items:center;text-align:center;color:#fff;cursor:pointer;
+  background:radial-gradient(120% 90% at 20% 100%,var(--brand-3,#F37160) 0%,var(--brand,#EE2722) 45%,var(--brand-2,#76174A) 100%);opacity:0}
+.fly[hidden]{display:none}
+.fly.go{opacity:1;transition:opacity .35s ease}
+.fly-sky{position:absolute;inset:0;width:100%;height:100%;overflow:visible}
+.fly-trail{fill:none;stroke:rgba(255,255,255,.6);stroke-width:4;stroke-linecap:round;stroke-dasharray:0 1;transition:opacity .7s ease}
+.fly-plane{position:absolute;left:0;top:0;overflow:visible;fill:#fff;opacity:0;will-change:transform}
+.fly-text{position:relative;padding:0 24px;opacity:0;transform:translateY(18px);will-change:transform,opacity}
+.fly-text h1{margin:0;font-size:clamp(34px,7vw,68px);font-weight:800;letter-spacing:-1px;line-height:1.1;color:#fff;text-shadow:0 4px 18px rgba(0,0,0,.2)}
+.fly-text p{margin:12px 0 0;font-size:clamp(16px,2.4vw,22px);opacity:.92;color:#fff}
+.fly.go .fly-text{animation:flyText .8s 1s cubic-bezier(.2,.8,.2,1) forwards}
+@keyframes flyText{to{opacity:1;transform:none}}
+.fly-clouds i{position:absolute;display:block;height:46px;width:150px;border-radius:50px;background:rgba(255,255,255,.16);animation:cloud linear infinite}
+.fly-clouds i:nth-child(1){top:18%;left:-20%;animation-duration:7s}
+.fly-clouds i:nth-child(2){top:38%;left:-30%;width:220px;height:62px;animation-duration:9s;animation-delay:-3s}
+.fly-clouds i:nth-child(3){top:64%;left:-25%;animation-duration:8s;animation-delay:-5s}
+.fly-clouds i:nth-child(4){top:82%;left:-35%;width:260px;animation-duration:11s;animation-delay:-1s}
+@keyframes cloud{to{transform:translateX(160vw)}}
+@media (prefers-reduced-motion:reduce){
+  .fly-clouds,.fly-sky{display:none}
+  .fly.go .fly-text{animation-duration:.3s;animation-delay:0s}
+}

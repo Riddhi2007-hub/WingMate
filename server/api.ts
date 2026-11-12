@@ -364,7 +364,7 @@ const routes: Record<string, Handler> = {
     if (!user || !passed) throw new HttpError(401, 'bad_credentials', 'The email address or password is incorrect. Please try again.');
     if (!user.email_verified) throw new HttpError(403, 'email_not_verified', 'Please confirm your email address first. We sent you a link when you signed up.');
     const session = await createSession(db, rt.settings, user.id, b.remember === true);
-    return ok({}, { 'set-cookie': sessionCookie(session.token, session.maxAge, rt.settings.secureCookies) });
+    return ok({ first: user.first }, { 'set-cookie': sessionCookie(session.token, session.maxAge, rt.settings.secureCookies) });
   },
 
   async 'POST /api/logout'({ rt, db, token }) {

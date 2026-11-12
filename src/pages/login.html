@@ -85,6 +85,24 @@
   </main>
 </div>
 
+<div class="fly" id="fly" role="status" aria-live="polite" hidden>
+  <div class="fly-clouds" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+  <svg class="fly-sky" id="flySky" aria-hidden="true" focusable="false">
+    <path id="flyTrail" class="fly-trail" pathLength="1" d=""/>
+  </svg>
+  <svg class="fly-plane" id="flyPlane" width="1" height="1" aria-hidden="true" focusable="false">
+    <g transform="scale(1.7)">
+      <path d="M30 0C30-3.6 24-5 14-5H-26C-30-5-32-3-32 0S-30 5-26 5H14C24 5 30 3.6 30 0Z"/>
+      <path d="M8-4L-10-31H-19L-6-4Z"/><path d="M8 4L-10 31H-19L-6 4Z"/>
+      <path d="M-24-4L-32-14H-37L-31-4Z"/><path d="M-24 4L-32 14H-37L-31 4Z"/>
+    </g>
+  </svg>
+  <div class="fly-text">
+    <h1 id="flyHello">Welcome back</h1>
+    <p>Taking you to your flight&hellip;</p>
+  </div>
+</div>
+
 <script src="js/login.js"></script>
 </body>
 </html>
