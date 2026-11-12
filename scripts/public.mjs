@@ -1,4 +1,4 @@
-// Runs WingMate on this computer and shares it at a public https link using a free Cloudflare quick tunnel.
+// Runs WingMate on this computer and shares it at a public https link using a Cloudflare quick tunnel.
 //   npm run public      (or double-click start-public.bat on Windows)
 // The site is only reachable while this window stays open. Your data stays in the data folder on this computer.
 import { spawn, spawnSync } from 'node:child_process';
@@ -25,7 +25,7 @@ if (spawnSync(process.execPath, ['scripts/preflight.mjs'], { stdio: 'inherit', e
 const tunnelCmd = process.env.WINGMATE_TUNNEL_CMD ?? 'cloudflared';
 const probe = process.env.WINGMATE_TUNNEL_CMD ? { status: 0 } : spawnSync(tunnelCmd, ['--version'], { shell: process.platform === 'win32' });
 if (probe.error || probe.status !== 0) {
-  console.log(`\nThe free tunnel program (cloudflared) is not installed.\n  Windows:  winget install Cloudflare.cloudflared   (then open a NEW window and run this again)\n  Other:    https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/\n`);
+  console.log(`\nThe tunnel program (cloudflared) is not installed.\n  Windows:  winget install Cloudflare.cloudflared   (then open a NEW window and run this again)\n  Other:    https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/\n`);
   process.exit(1);
 }
 

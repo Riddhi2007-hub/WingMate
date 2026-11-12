@@ -58,30 +58,30 @@ Everything (accounts, flights, connections, messages, reports) is in one SQLite 
 stored only as scrypt hashes. **A hosting plan with a persistent disk is required**, otherwise the file is erased on every restart.
 Make a safe copy any time with `npm run backup` (saved in `backups/`, works while the server runs); copy that folder somewhere off the server.
 
-## Share it for free from your own computer (no hosting cost)
+## Share it from your own computer
 
-For a demo or a call: double-click **`start-public.bat`** (or `npm run public`). It builds the site, opens a free Cloudflare quick tunnel,
+For a demo or a call: double-click **`start-public.bat`** (or `npm run public`). It builds the site, opens a Cloudflare quick tunnel,
 starts the server and prints a public `https://...trycloudflare.com/airasia/login.html` link to share.
 First time only: install the tunnel program with `winget install Cloudflare.cloudflared` and open a new window.
 The site is online only while that window is open and the computer is awake; the link changes every start; your data stays in `data/` on your computer.
 For real confirmation emails copy `.env.example` to `.env` and fill in the Gmail app password (see the file).
 
-## Put it online for free with Cloudflare (always on, deploys from GitHub)
+## Put it online with Cloudflare (always on, deploys from GitHub)
 
-The same API code also runs as a **Cloudflare Worker** with the data in a **D1** database, all on Cloudflare's free plan (no card).
+The same API code also runs as a **Cloudflare Worker** with the data in a **D1** database, all on Cloudflare.
 You get a permanent address like `https://wingmate.<your-name>.workers.dev`, and every push to GitHub redeploys it.
 
-1. Make a free account at https://dash.cloudflare.com.
+1. Make an account at https://dash.cloudflare.com.
 2. **Create the database:** *Storage & databases > D1 SQL database > Create database*, name it `wingmate`. Copy its **Database ID**.
 3. **Paste the ID:** on GitHub open `wrangler.toml`, replace `PASTE-YOUR-D1-DATABASE-ID-HERE` with that ID, and commit. (The tables are created automatically on the first request.)
 4. **Connect the repo:** *Workers & Pages > Create > Import a repository*, choose `WingMate`. Build command `npm run build`, deploy command `npx wrangler deploy` (the defaults it suggests). Deploy.
 5. **Email (needed, otherwise nobody can confirm their account):** in the Worker's *Settings > Variables and secrets* add `SMTP_HOST=smtp.gmail.com`, `SMTP_PORT=587`, `SMTP_USER=you@gmail.com`, `SMTP_FROM=WingMate <you@gmail.com>` as text, and `SMTP_PASS` (a Gmail **app password**) as a **Secret**.
 6. Open `https://<your-worker>.workers.dev/airasia/login.html`, sign up, and check your inbox.
 
-**Free plan limits to know about**
-- **Password hashing is lighter than the Node server's.** A free Worker gets about 10 ms of processor time per request, so passwords use PBKDF2 with **10,000 rounds** (`PBKDF2_ITERATIONS`). That is weaker than the 600,000 usually recommended; fine for a pilot, not for a public launch. On the **$5/month Workers Paid plan** set `PBKDF2_ITERATIONS=600000` (each hash stores its own cost, so existing passwords keep working). If sign-in ever fails with "Error 1102", lower it (try 5000).
+**Pilot limits to know about** (the pilot runs on Cloudflare's entry plan; production would use a paid plan with higher limits)
+- **Password hashing is lighter than the Node server's.** The entry-plan Worker gets about 10 ms of processor time per request, so passwords use PBKDF2 with **10,000 rounds** (`PBKDF2_ITERATIONS`). That is weaker than the 600,000 usually recommended; fine for a pilot, not for a public launch. On the **$5/month Workers Paid plan** set `PBKDF2_ITERATIONS=600000` (each hash stores its own cost, so existing passwords keep working). If sign-in ever fails with "Error 1102", lower it (try 5000).
 - **100,000 API requests a day.** The dashboard asks the server every 8 seconds (2.5 s while a chat is open), so a handful of people online all day is fine, hundreds is not.
-- D1 free tier: 5 GB, 100,000 row writes and 5 million row reads per day.
+- D1 entry plan: 5 GB, 100,000 row writes and 5 million row reads per day.
 - Cloudflare cannot send mail on port 25; Gmail on 587 (or 465) is fine.
 
 **Testing without Cloudflare:** `npm test` runs the whole API test suite twice, against the Node server and against the Worker code running in a local harness

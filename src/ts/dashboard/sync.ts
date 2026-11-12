@@ -167,7 +167,7 @@ export function sync(): Promise<boolean> {
 
 let timer: number | undefined;
 
-/** How often to ask the server: quickly while a chat is open, slowly otherwise (the free hosting plan counts every request). */
+/** How often to ask the server: quickly while a chat is open, slowly otherwise (the hosting plan counts every request). */
 const pollDelay = (): number => (state.currentView === 'messages' ? 2500 : 8000);
 
 export function startPolling(): void {
